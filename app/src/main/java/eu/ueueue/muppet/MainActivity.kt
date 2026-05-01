@@ -142,8 +142,11 @@ class MainActivity : AppCompatActivity() {
         binding.statusText.text = "Rendu en cours..."
         val srtPath = videoExporter.generateSrt(stt)
         val timelineJson = timeline.toString()
+        val wordsJson = stt.words.joinToString(",", "[", "]") {
+            """{"start":${it.start},"end":${it.end}}"""
+        }
         binding.webView.evaluateJavascript(
-            "startRenderWithTimeline($timelineJson, ${stt.durationSeconds})", null
+            "startRenderWithTimeline($timelineJson, ${stt.durationSeconds}, $wordsJson)", null
         )
         // La suite est gérée par onRenderComplete via PuppetBridge
         puppetBridge.pendingAudioPath = audioPath

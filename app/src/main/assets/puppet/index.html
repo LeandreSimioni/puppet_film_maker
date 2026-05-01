@@ -108,7 +108,21 @@ function startRender(totalFrames,fps){
   next();
 }
 
-function startRenderWithTimeline(tl,duration){
+function computeLipSync(t,words){
+  for(const w of words){
+    if(t>=w.start&&t<=w.end){
+      const p=(t-w.start)/Math.max(w.end-w.start,0.05);
+      return 0.35+0.65*Math.sin(p*Math.PI);
+    }
+  }
+  // fermeture progressive 80ms après la fin du mot
+  const prev=words.filter(w=>w.end<=t).pop();
+  if(prev&&t-prev.end<0.08) return(1-(t-prev.end)/0.08)*0.25;
+  return 0;
+}
+
+function startRenderWithTimeline(tl,duration,words){
+  words=words||[];
   timeline=tl.map(e=>({...e,_done:false}));
   const fps=30,totalFrames=Math.ceil(duration*fps);
   if(isExporting)return;
@@ -121,6 +135,7 @@ function startRenderWithTimeline(tl,duration){
     for(const ev of timeline){
       if(!ev._done&&t>=ev.t){applyAction(ev);ev._done=true;}
     }
+    state.mouthOpen=computeLipSync(t,words);
     updatePuppet();
     renderer.render(scene,camera);
     Android.onFrame(renderer.domElement.toDataURL('image/jpeg',0.9),frame);
