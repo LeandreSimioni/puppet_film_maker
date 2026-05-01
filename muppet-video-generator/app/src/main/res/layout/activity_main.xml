@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0a0400">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Preview marionnette -->
+        <WebView
+            android:id="@+id/webView"
+            android:layout_width="match_parent"
+            android:layout_height="300dp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Statut -->
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Prêt."
+            android:textColor="#ff9800"
+            android:fontFamily="monospace"
+            android:textSize="12sp"
+            android:layout_marginBottom="12dp" />
+
+        <!-- ÉTAPE 1 : sujet / script -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1. SCRIPT"
+            android:textColor="#555"
+            android:fontFamily="monospace"
+            android:textSize="11sp"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/scriptInput"
+            android:layout_width="match_parent"
+            android:layout_height="140dp"
+            android:background="#1a0e00"
+            android:textColor="#e8e0d0"
+            android:hint="Décris ton sujet ou colle un script avec [didascalies]"
+            android:hintTextColor="#444"
+            android:padding="12dp"
+            android:gravity="top"
+            android:inputType="textMultiLine"
+            android:fontFamily="monospace"
+            android:textSize="13sp"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/btnRedact"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Générer le script avec didascalies"
+            android:backgroundTint="#1a1a2e"
+            android:textColor="#ce93d8"
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/btnValidate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Valider le script → TTS + STT + Orchestration"
+            android:backgroundTint="#1a2e1a"
+            android:textColor="#4caf50"
+            android:layout_marginBottom="16dp" />
+
+        <!-- ÉTAPE 2 : rendu -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2. RENDU"
+            android:textColor="#555"
+            android:fontFamily="monospace"
+            android:textSize="11sp"
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/btnRender"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Lancer le rendu → MP4"
+            android:backgroundTint="#2e1a00"
+            android:textColor="#ff9800"
+            android:enabled="false"
+            android:layout_marginBottom="16dp" />
+
+        <!-- ÉTAPE 3 : correction -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="3. CORRECTIONS (audio réutilisé)"
+            android:textColor="#555"
+            android:fontFamily="monospace"
+            android:textSize="11sp"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/refineInput"
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:background="#1a0e00"
+            android:textColor="#e8e0d0"
+            android:hint="Ex: Elle bouge trop peu. Ajoute plus de regards vers le bas."
+            android:hintTextColor="#444"
+            android:padding="12dp"
+            android:gravity="top"
+            android:inputType="textMultiLine"
+            android:fontFamily="monospace"
+            android:textSize="13sp"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/btnRefine"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Corriger la timeline → re-rendre"
+            android:backgroundTint="#1a1a2e"
+            android:textColor="#ce93d8"
+            android:enabled="false"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Test Phase 1 -->
+        <Button
+            android:id="@+id/btnTestExport"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="[DEV] Test export 5s sans audio"
+            android:backgroundTint="#1a1a1a"
+            android:textColor="#555" />
+
+    </LinearLayout>
+</ScrollView>

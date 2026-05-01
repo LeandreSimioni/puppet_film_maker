@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>* { margin:0; padding:0; } body { background:#150800; overflow:hidden; }</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const W=1080,H=1080;
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setSize(W,H);
+document.body.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x150800);
+const camera=new THREE.PerspectiveCamera(42,W/H,0.1,100);
+camera.position.set(0,0.2,6);
+camera.lookAt(0,0.2,0);
+
+scene.add(new THREE.AmbientLight(0xffeedd,0.4));
+const key=new THREE.DirectionalLight(0xfff5e0,1.6);
+key.position.set(3,5,5); scene.add(key);
+const fill=new THREE.DirectionalLight(0x99bbff,0.35);
+fill.position.set(-4,2,3); scene.add(fill);
+
+const skinMat=new THREE.MeshStandardMaterial({color:0xf2c0a8,roughness:0.85});
+const hairMat=new THREE.MeshStandardMaterial({color:0x4a3a2e,roughness:0.8});
+const shirtMat=new THREE.MeshStandardMaterial({color:0xd98b4f,roughness:0.9});
+const intMat=new THREE.MeshStandardMaterial({color:0x3a0a14,roughness:0.7});
+const whiteMat=new THREE.MeshStandardMaterial({color:0xf5f1e8,roughness:0.4});
+const darkMat=new THREE.MeshStandardMaterial({color:0x1a1410,roughness:0.5});
+const hatMat=new THREE.MeshStandardMaterial({color:0x222222,roughness:0.9});
+
+const root=new THREE.Group(); scene.add(root);
+
+// Corps
+const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.32,0.5,24),
+  new THREE.MeshStandardMaterial({color:0xd49060,roughness:0.8}));
+neck.position.set(0,-0.58,0); root.add(neck);
+const body=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.62,1.6,24),shirtMat);
+body.position.set(0,-1.6,0); root.add(body);
+
+// Tête
+const headGroup=new THREE.Group(); root.add(headGroup);
+headGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.9,32,24),intMat));
+
+// Mâchoire haute
+const upperJaw=new THREE.Group(); headGroup.add(upperJaw);
+upperJaw.add(new THREE.Mesh(new THREE.SphereGeometry(1,48,32,0,Math.PI*2,0,Math.PI/2),skinMat));
+const hairCap=new THREE.Mesh(new THREE.SphereGeometry(1.04,40,18,0,Math.PI*2,0,Math.PI/3),hairMat);
+hairCap.position.y=0.02; upperJaw.add(hairCap);
+const bangs=new THREE.Mesh(new THREE.SphereGeometry(0.85,22,10),hairMat);
+bangs.scale.set(1,0.18,0.55); bangs.position.set(0,0.7,0.62); upperJaw.add(bangs);
+
+function makeEye(sx){
+  const g=new THREE.Group(); g.position.set(sx*0.4,0.45,0.78);
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.22,22,18),whiteMat));
+  const p=new THREE.Mesh(new THREE.SphereGeometry(0.1,14,12),darkMat); p.position.z=0.16; g.add(p);
+  const b=new THREE.Mesh(new THREE.BoxGeometry(0.32,0.07,0.08),darkMat);
+  b.position.set(0,0.3,0.08); b.rotation.z=sx*-0.18; g.add(b);
+  upperJaw.add(g);
+}
+makeEye(-1); makeEye(1);
+
+const nose=new THREE.Mesh(new THREE.SphereGeometry(0.12,16,12),skinMat);
+nose.scale.set(1,1.05,1.25); nose.position.set(0,0.12,0.97); upperJaw.add(nose);
+const brim=new THREE.Mesh(new THREE.CylinderGeometry(1.25,1.25,0.1,48),hatMat);
+brim.position.set(0,0.88,0); upperJaw.add(brim);
+const crown=new THREE.Mesh(new THREE.CylinderGeometry(0.82,0.88,0.72,48),hatMat);
+crown.position.set(0,1.28,0); upperJaw.add(crown);
+
+// Mâchoire basse
+const lowerJaw=new THREE.Group(); headGroup.add(lowerJaw);
+lowerJaw.add(new THREE.Mesh(new THREE.SphereGeometry(1,48,32,0,Math.PI*2,Math.PI/2,Math.PI/2),skinMat));
+
+let state={mouthOpen:0,gazeX:0,gazeY:0,roll:0,posX:0};
+let timeline=[]; let isExporting=false;
+
+function updatePuppet(){
+  headGroup.rotation.y=state.gazeX*0.65;
+  headGroup.rotation.x=-state.gazeY*0.35;
+  root.rotation.z=state.roll;
+  root.position.x=state.posX;
+  lowerJaw.rotation.x=state.mouthOpen*0.9;
+  upperJaw.rotation.x=-state.mouthOpen*0.25;
+}
+
+function renderLoop(){requestAnimationFrame(renderLoop);updatePuppet();renderer.render(scene,camera);}
+renderLoop();
+
+// Export frames
+function startRender(totalFrames,fps){
+  if(isExporting)return;
+  isExporting=true;
+  Android.onRenderStart(totalFrames);
+  let frame=0;
+  function next(){
+    if(frame>=totalFrames){isExporting=false;Android.onRenderComplete();return;}
+    // Animation test : bouche oscille
+    state.mouthOpen=0.5+0.5*Math.sin(frame*(1/fps)*Math.PI*2);
+    updatePuppet();
+    renderer.render(scene,camera);
+    Android.onFrame(renderer.domElement.toDataURL('image/jpeg',0.9),frame);
+    frame++;
+    setTimeout(next,0);
+  }
+  next();
+}
+
+function startRenderWithTimeline(tl,duration){
+  timeline=tl.map(e=>({...e,_done:false}));
+  const fps=30,totalFrames=Math.ceil(duration*fps);
+  if(isExporting)return;
+  isExporting=true;
+  Android.onRenderStart(totalFrames);
+  let frame=0;
+  function next(){
+    if(frame>=totalFrames){isExporting=false;Android.onRenderComplete();return;}
+    const t=frame/fps;
+    for(const ev of timeline){
+      if(!ev._done&&t>=ev.t){applyAction(ev);ev._done=true;}
+    }
+    updatePuppet();
+    renderer.render(scene,camera);
+    Android.onFrame(renderer.domElement.toDataURL('image/jpeg',0.9),frame);
+    frame++;
+    setTimeout(next,0);
+  }
+  next();
+}
+
+function applyAction(ev){
+  if(ev.action==='setGaze'){state.gazeX=ev.gx??0;state.gazeY=ev.gy??0;}
+  else if(ev.action==='setRoll'){state.roll=ev.rad??0;}
+  else if(ev.action==='setMouth'){state.mouthOpen=ev.amount??0;}
+  else if(ev.action==='moveX'){state.posX=ev.x??0;}
+}
+
+window.startRender=startRender;
+window.startRenderWithTimeline=startRenderWithTimeline;
+window.setMouthOpen=(v)=>{state.mouthOpen=v;};
+</script>
+</body>
+</html>
