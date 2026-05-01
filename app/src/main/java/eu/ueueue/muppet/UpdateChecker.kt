@@ -1,15 +1,16 @@
 package eu.ueueue.muppet
 
-import android.app.Activity
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -31,11 +32,11 @@ object UpdateChecker {
         timeZone = TimeZone.getTimeZone("UTC")
     }
 
-    suspend fun checkAndPrompt(activity: Activity, onStatus: (String) -> Unit) {
+    suspend fun checkAndPrompt(activity: AppCompatActivity, onStatus: (String) -> Unit) {
         try {
             val release = fetchLatestRelease() ?: return
             val publishedAt = release.get("published_at")?.asString ?: return
-            val releaseTime = dateFmt.parse(publishedAt)?.time ?: return
+            val releaseTime: Long = dateFmt.parse(publishedAt)?.time ?: return
 
             AppLogger.log("Update", "BUILD_TIME=${BuildConfig.BUILD_TIME} releaseTime=$releaseTime")
 
@@ -44,7 +45,7 @@ object UpdateChecker {
                 return
             }
 
-            val apkUrl = findApkUrl(release) ?: run {
+            val apkUrl: String = findApkUrl(release) ?: run {
                 AppLogger.err("Update", "aucun APK dans la release")
                 return
             }
@@ -54,9 +55,9 @@ object UpdateChecker {
             withContext(Dispatchers.Main) {
                 AlertDialog.Builder(activity)
                     .setTitle("Mise à jour disponible")
-                    .setMessage("Une nouvelle version est disponible sur GitHub. Téléchargement et installation automatiques ?")
+                    .setMessage("Une nouvelle version est disponible sur GitHub. Télécharger et installer ?")
                     .setPositiveButton("Installer") { _, _ ->
-                        activity.lifecycleScope().launch {
+                        activity.lifecycleScope.launch {
                             downloadAndInstall(activity, apkUrl, onStatus)
                         }
                     }
@@ -73,7 +74,8 @@ object UpdateChecker {
         val req = Request.Builder().url(url)
             .header("Accept", "application/vnd.github.v3+json")
             .build()
-        val body = http.newCall(req).execute().use { it.body?.string() } ?: return@withContext null
+        val body: String = http.newCall(req).execute().use { it.body?.string() }
+            ?: return@withContext null
         Gson().fromJson(body, JsonObject::class.java)
     }
 
@@ -88,7 +90,11 @@ object UpdateChecker {
         return null
     }
 
-    private suspend fun downloadAndInstall(activity: Activity, apkUrl: String, onStatus: (String) -> Unit) {
+    private suspend fun downloadAndInstall(
+        activity: AppCompatActivity,
+        apkUrl: String,
+        onStatus: (String) -> Unit
+    ) {
         try {
             if (!activity.packageManager.canRequestPackageInstalls()) {
                 withContext(Dispatchers.Main) {
@@ -97,8 +103,10 @@ object UpdateChecker {
                         .setMessage("Autorise l'installation depuis cette source dans les paramètres.")
                         .setPositiveButton("Paramètres") { _, _ ->
                             activity.startActivity(
-                                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                    Uri.parse("package:${activity.packageName}"))
+                                Intent(
+                                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                    Uri.parse("package:${activity.packageName}")
+                                )
                             )
                         }
                         .setNegativeButton("Annuler", null)
@@ -109,12 +117,12 @@ object UpdateChecker {
 
             withContext(Dispatchers.Main) { onStatus("Téléchargement de la mise à jour...") }
 
-            val apkFile = withContext(Dispatchers.IO) {
+            val apkFile: File = withContext(Dispatchers.IO) {
                 val file = File(activity.cacheDir, "update.apk")
                 val req = Request.Builder().url(apkUrl).build()
                 http.newCall(req).execute().use { resp ->
                     val body = resp.body ?: throw RuntimeException("Corps de réponse vide")
-                    val total = body.contentLength()
+                    val total: Long = body.contentLength()
                     var downloaded = 0L
                     FileOutputStream(file).use { out ->
                         body.byteStream().use { input ->
@@ -124,7 +132,7 @@ object UpdateChecker {
                                 out.write(buf, 0, n)
                                 downloaded += n
                                 if (total > 0) {
-                                    val pct = (downloaded * 100 / total).toInt()
+                                    val pct: Int = (downloaded * 100 / total).toInt()
                                     if (pct % 10 == 0) {
                                         activity.runOnUiThread { onStatus("Téléchargement $pct%...") }
                                     }
@@ -156,6 +164,3 @@ object UpdateChecker {
         }
     }
 }
-
-private fun Activity.lifecycleScope() =
-    (this as androidx.lifecycle.LifecycleOwner).lifecycleScope
