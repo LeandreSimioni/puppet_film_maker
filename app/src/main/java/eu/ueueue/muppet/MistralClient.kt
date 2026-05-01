@@ -75,13 +75,12 @@ Exemples de didascalies valides :
     // ÉTAPE 2 : TTS — script texte seul → audio WAV
     // L'émotion vocale peut varier par segment selon les didascalies
     // ─────────────────────────────────────────
-    suspend fun tts(text: String, emotion: String = "excited"): String =
+    suspend fun tts(text: String): String =
         withContext(Dispatchers.IO) {
             val body = JsonObject().apply {
                 addProperty("model", "voxtral-mini-tts-2603")
                 addProperty("input", text)
-                addProperty("voice_id", "marie")
-                addProperty("emotion", emotion)
+                addProperty("voice", "fr_female")
                 addProperty("response_format", "wav")
             }
             val request = Request.Builder()
