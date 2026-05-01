@@ -3,11 +3,13 @@ name: Build APK
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:  # permet de déclencher manuellement depuis GitHub
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -27,9 +29,23 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk muppet-debug.apk
+
+      - name: Update latest release
+        uses: ncipollo/release-action@v1
         with:
-          name: muppet-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+          tag: latest
+          name: "Dernière version"
+          body: |
+            APK de debug mis à jour automatiquement à chaque merge dans `main`.
+
+            **Installation :**
+            1. Télécharge `muppet-debug.apk`
+            2. Sur l'appareil : Paramètres → Sécurité → Autoriser sources inconnues
+            3. Ouvre le fichier APK → Installer
+          artifacts: muppet-debug.apk
+          allowUpdates: true
+          replacesArtifacts: true
+          makeLatest: true
+          prerelease: false
