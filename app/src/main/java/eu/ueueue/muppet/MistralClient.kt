@@ -78,7 +78,7 @@ Exemples de didascalies valides :
     suspend fun tts(text: String): String =
         withContext(Dispatchers.IO) {
             val body = JsonObject().apply {
-                addProperty("model", "voxtral-mini-tts-2603")
+                addProperty("model", "mistral-tts-latest")
                 addProperty("input", text)
                 addProperty("voice_id", "fr_female")
                 addProperty("response_format", "mp3")
