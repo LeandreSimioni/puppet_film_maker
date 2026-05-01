@@ -9,9 +9,8 @@ android {
         applicationId "eu.ueueue.muppet"
         minSdk 26
         targetSdk 34
-        versionCode 1
+        versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 1
         versionName "0.1.0"
-        buildConfigField "long", "BUILD_TIME", System.currentTimeMillis() + "L"
         buildConfigField "String", "GITHUB_REPO", '"LeandreSimioni/puppet_film_maker"'
     }
     signingConfigs {

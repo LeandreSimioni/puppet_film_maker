@@ -32,7 +32,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace 2>&1 | tee /tmp/build.log; exit ${PIPESTATUS[0]}
+        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }} --stacktrace 2>&1 | tee /tmp/build.log; exit ${PIPESTATUS[0]}
 
       - name: Upload build log on failure
         if: failure()
@@ -42,8 +42,10 @@ jobs:
           path: /tmp/build.log
           retention-days: 3
 
-      - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk muppet-debug.apk
+      - name: Prepare release artifacts
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk muppet-debug.apk
+          echo '{"versionCode":${{ github.run_number }}}' > version.json
 
       - name: Update latest release
         uses: ncipollo/release-action@v1
@@ -52,12 +54,13 @@ jobs:
           name: "Dernière version"
           body: |
             APK de debug mis à jour automatiquement à chaque merge dans `main`.
+            Build : #${{ github.run_number }}
 
             **Installation :**
             1. Télécharge `muppet-debug.apk`
             2. Sur l'appareil : Paramètres → Sécurité → Autoriser sources inconnues
             3. Ouvre le fichier APK → Installer
-          artifacts: muppet-debug.apk
+          artifacts: "muppet-debug.apk,version.json"
           allowUpdates: true
           replacesArtifacts: true
           makeLatest: true
