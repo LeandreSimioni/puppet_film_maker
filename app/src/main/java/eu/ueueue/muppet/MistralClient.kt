@@ -80,7 +80,6 @@ Exemples de didascalies valides :
             val body = JsonObject().apply {
                 addProperty("model", "mistral-tts-latest")
                 addProperty("input", text)
-                addProperty("voice_id", "fr_female")
                 addProperty("response_format", "mp3")
             }
             AppLogger.log("TTS", "request body: $body")
