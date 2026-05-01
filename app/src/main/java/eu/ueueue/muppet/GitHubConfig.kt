@@ -15,8 +15,8 @@ import java.util.concurrent.TimeUnit
  */
 object GitHubConfig {
 
-    private const val GITHUB_USER = "TON_USERNAME_GITHUB"
-    private const val GITHUB_REPO = "muppet-video-generator"
+    private const val GITHUB_USER = "leandresimioni"
+    private const val GITHUB_REPO = "puppet_film_maker"
     private const val BRANCH = "main"
 
     private val http = OkHttpClient.Builder()

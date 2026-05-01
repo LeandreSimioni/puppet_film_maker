@@ -26,9 +26,18 @@ class MistralClient(private val context: Context) {
         .build()
 
     private fun loadApiKey(): String {
-        return context.assets.open("config/config.json").use {
-            gson.fromJson(it.reader(), JsonObject::class.java)
-                .get("mistral_api_key").asString
+        val prefs = context.getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+        prefs.getString("mistral_api_key", null)?.takeIf { it.isNotBlank() }?.let { return it }
+        // Migration depuis config.json si présent (puis suppression non nécessaire, gitignored)
+        return try {
+            context.assets.open("config/config.json").use {
+                gson.fromJson(it.reader(), JsonObject::class.java)
+                    .get("mistral_api_key").asString.also { key ->
+                        prefs.edit().putString("mistral_api_key", key).apply()
+                    }
+            }
+        } catch (e: Exception) {
+            throw RuntimeException("Clé API Mistral manquante — configure-la dans l'app.")
         }
     }
 
