@@ -1,7 +1,10 @@
 package eu.ueueue.muppet
 
+import android.content.ContentValues
 import android.content.Context
+import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
 import kotlinx.coroutines.Dispatchers
@@ -17,11 +20,11 @@ class VideoExporter(private val context: Context) {
         fps: Int = 30,
         outputName: String = "muppet_${System.currentTimeMillis()}.mp4"
     ): String = withContext(Dispatchers.IO) {
-        val outputDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: context.filesDir
-        val outputFile = File(outputDir, outputName)
+        // FFmpeg écrit d'abord dans le cache (toujours accessible en écriture)
+        val tempFile = File(context.cacheDir, outputName)
 
         AppLogger.log("FFmpeg", "framesDir=$framesDir audio=$audioPath srt=$srtPath")
-        AppLogger.log("FFmpeg", "output=${outputFile.absolutePath}")
+        AppLogger.log("FFmpeg", "temp=${tempFile.absolutePath}")
 
         val frameCount = File(framesDir).listFiles()?.size ?: 0
         AppLogger.log("FFmpeg", "frames trouvés : $frameCount")
@@ -36,7 +39,7 @@ class VideoExporter(private val context: Context) {
             if (audioPath != null) append("-i '$audioPath' ")
             append("-vf '$vf' -c:v h264_mediacodec -b:v 6M ")
             if (audioPath != null) append("-c:a aac -shortest ")
-            append("-y '${outputFile.absolutePath}'")
+            append("-y '${tempFile.absolutePath}'")
         }
         AppLogger.log("FFmpeg", "cmd: $cmd")
 
@@ -47,8 +50,36 @@ class VideoExporter(private val context: Context) {
         if (!ReturnCode.isSuccess(session.returnCode))
             throw RuntimeException("FFmpeg a échoué (rc=${session.returnCode})\n${logs.takeLast(300)}")
 
-        AppLogger.log("FFmpeg", "succès → ${outputFile.absolutePath}")
-        outputFile.absolutePath
+        // Copie dans Téléchargements (visible dans l'app Fichiers)
+        val finalPath = copyToDownloads(tempFile, outputName)
+        tempFile.delete()
+
+        AppLogger.log("FFmpeg", "succès → $finalPath")
+        finalPath
+    }
+
+    private fun copyToDownloads(src: File, name: String): String {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, name)
+                put(MediaStore.Downloads.MIME_TYPE, "video/mp4")
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri = context.contentResolver.insert(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
+            ) ?: throw RuntimeException("Impossible de créer l'entrée MediaStore")
+            context.contentResolver.openOutputStream(uri)!!.use { out ->
+                src.inputStream().use { it.copyTo(out) }
+            }
+            // Retourne un chemin lisible pour l'affichage
+            "${Environment.DIRECTORY_DOWNLOADS}/$name"
+        } else {
+            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            dir.mkdirs()
+            val dest = File(dir, name)
+            src.copyTo(dest, overwrite = true)
+            dest.absolutePath
+        }
     }
 
     fun generateSrt(timestamps: SttResult): String {

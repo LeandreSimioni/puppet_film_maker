@@ -1,7 +1,6 @@
 package eu.ueueue.muppet
 
 import android.content.Context
-import android.media.MediaScannerConnection
 import android.os.Bundle
 import android.text.InputType
 import android.webkit.WebView
@@ -272,10 +271,7 @@ class MainActivity : AppCompatActivity() {
                     fps = 30,
                     outputName = "muppet_${System.currentTimeMillis()}.mp4"
                 )
-                MediaScannerConnection.scanFile(
-                    this@MainActivity, arrayOf(outputPath), arrayOf("video/mp4"), null
-                )
-                setStatus("✓ Vidéo créée : $outputPath")
+                setStatus("✓ Vidéo dans Téléchargements : $outputPath")
             } catch (e: Exception) {
                 showError("Assemblage FFmpeg", e)
             }
