@@ -44,6 +44,9 @@ class MainActivity : AppCompatActivity() {
         checkApiKey()
 
         lifecycleScope.launch {
+            setStatus("Vérification des mises à jour...")
+            UpdateChecker.checkAndPrompt(this@MainActivity) { setStatus(it) }
+
             setStatus("Chargement de la configuration...")
             try {
                 GitHubConfig.load(assets)
