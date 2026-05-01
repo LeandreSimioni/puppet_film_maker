@@ -1,5 +1,6 @@
 package eu.ueueue.muppet
 
+import android.media.MediaScannerConnection
 import android.os.Bundle
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -159,7 +160,10 @@ class MainActivity : AppCompatActivity() {
                 fps = 30,
                 outputName = "muppet_${System.currentTimeMillis()}.mp4"
             )
-            binding.statusText.text = "✓ Vidéo exportée dans ta galerie"
+            MediaScannerConnection.scanFile(
+                this@MainActivity, arrayOf(outputPath), arrayOf("video/mp4"), null
+            )
+            binding.statusText.text = "✓ $outputPath"
         }
     }
 
