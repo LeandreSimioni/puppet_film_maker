@@ -80,17 +80,21 @@ Exemples de didascalies valides :
             val body = JsonObject().apply {
                 addProperty("model", "voxtral-mini-tts-2603")
                 addProperty("input", text)
-                addProperty("voice", "fr_female")
-                addProperty("response_format", "wav")
+                addProperty("voice_id", "fr_female")
+                addProperty("response_format", "mp3")
             }
+            AppLogger.log("TTS", "request body: $body")
             val request = Request.Builder()
                 .url("https://api.mistral.ai/v1/audio/speech")
                 .header("Authorization", "Bearer $apiKey")
                 .post(body.toString().toRequestBody("application/json".toMediaType()))
                 .build()
             val response = http.newCall(request).execute()
-            if (!response.isSuccessful) throw RuntimeException("TTS error: ${response.code}")
-            val audioFile = File(context.cacheDir, "tts_${System.currentTimeMillis()}.wav")
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: "(vide)"
+                throw RuntimeException("TTS error ${response.code}: $errorBody")
+            }
+            val audioFile = File(context.cacheDir, "tts_${System.currentTimeMillis()}.mp3")
             audioFile.writeBytes(response.body!!.bytes())
             audioFile.absolutePath
         }
