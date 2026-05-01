@@ -16,9 +16,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 object UpdateChecker {
@@ -28,34 +25,32 @@ object UpdateChecker {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private val dateFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("UTC")
-    }
-
     suspend fun checkAndPrompt(activity: AppCompatActivity, onStatus: (String) -> Unit) {
         try {
-            val release = fetchLatestRelease() ?: return
-            val publishedAt = release.get("published_at")?.asString ?: return
-            val releaseTime: Long = dateFmt.parse(publishedAt)?.time ?: return
+            val remoteVersion: Int = fetchRemoteVersionCode() ?: run {
+                AppLogger.log("Update", "version.json introuvable — skip")
+                return
+            }
+            val localVersion: Int = BuildConfig.VERSION_CODE
 
-            AppLogger.log("Update", "BUILD_TIME=${BuildConfig.BUILD_TIME} releaseTime=$releaseTime")
+            AppLogger.log("Update", "local=$localVersion remote=$remoteVersion")
 
-            if (releaseTime <= BuildConfig.BUILD_TIME) {
-                AppLogger.log("Update", "application à jour")
+            if (remoteVersion <= localVersion) {
+                AppLogger.log("Update", "application à jour (build #$localVersion)")
                 return
             }
 
-            val apkUrl: String = findApkUrl(release) ?: run {
+            val apkUrl: String = fetchApkUrl() ?: run {
                 AppLogger.err("Update", "aucun APK dans la release")
                 return
             }
 
-            AppLogger.log("Update", "nouvelle version disponible → $apkUrl")
+            AppLogger.log("Update", "nouvelle version build #$remoteVersion → $apkUrl")
 
             withContext(Dispatchers.Main) {
                 AlertDialog.Builder(activity)
                     .setTitle("Mise à jour disponible")
-                    .setMessage("Une nouvelle version est disponible sur GitHub. Télécharger et installer ?")
+                    .setMessage("Build #$remoteVersion disponible (installé : #$localVersion). Télécharger et installer ?")
                     .setPositiveButton("Installer") { _, _ ->
                         activity.lifecycleScope.launch {
                             downloadAndInstall(activity, apkUrl, onStatus)
@@ -69,26 +64,18 @@ object UpdateChecker {
         }
     }
 
-    private suspend fun fetchLatestRelease(): JsonObject? = withContext(Dispatchers.IO) {
-        val url = "https://api.github.com/repos/${BuildConfig.GITHUB_REPO}/releases/latest"
-        val req = Request.Builder().url(url)
-            .header("Accept", "application/vnd.github.v3+json")
-            .build()
-        val body: String = http.newCall(req).execute().use { it.body?.string() }
-            ?: return@withContext null
-        Gson().fromJson(body, JsonObject::class.java)
+    private suspend fun fetchRemoteVersionCode(): Int? = withContext(Dispatchers.IO) {
+        val url = "https://github.com/${BuildConfig.GITHUB_REPO}/releases/latest/download/version.json"
+        val req = Request.Builder().url(url).build()
+        val body: String = http.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) return@withContext null
+            resp.body?.string()
+        } ?: return@withContext null
+        Gson().fromJson(body, JsonObject::class.java)?.get("versionCode")?.asInt
     }
 
-    private fun findApkUrl(release: JsonObject): String? {
-        val assets = release.getAsJsonArray("assets") ?: return null
-        for (a in assets) {
-            val obj = a.asJsonObject
-            if (obj.get("name")?.asString?.endsWith(".apk") == true) {
-                return obj.get("browser_download_url")?.asString
-            }
-        }
-        return null
-    }
+    private suspend fun fetchApkUrl(): String =
+        "https://github.com/${BuildConfig.GITHUB_REPO}/releases/latest/download/muppet-debug.apk"
 
     private suspend fun downloadAndInstall(
         activity: AppCompatActivity,
