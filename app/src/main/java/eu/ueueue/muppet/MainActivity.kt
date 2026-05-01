@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
         setupWebView()
         setupButtons()
         checkApiKey()
+        binding.scriptInput.setOnTouchListener { v, _ -> v.parent.requestDisallowInterceptTouchEvent(true); false }
 
         lifecycleScope.launch {
             setStatus("Vérification des mises à jour...")

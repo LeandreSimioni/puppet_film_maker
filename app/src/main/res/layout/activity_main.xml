@@ -43,7 +43,7 @@
         <EditText
             android:id="@+id/scriptInput"
             android:layout_width="match_parent"
-            android:layout_height="140dp"
+            android:layout_height="280dp"
             android:background="#1a0e00"
             android:textColor="#e8e0d0"
             android:hint="Décris ton sujet ou colle un script avec [didascalies]"
@@ -53,6 +53,8 @@
             android:inputType="textMultiLine"
             android:fontFamily="monospace"
             android:textSize="13sp"
+            android:scrollbars="vertical"
+            android:overScrollMode="always"
             android:layout_marginBottom="8dp" />
 
         <Button
