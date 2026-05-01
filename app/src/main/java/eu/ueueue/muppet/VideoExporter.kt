@@ -19,6 +19,14 @@ class VideoExporter(private val context: Context) {
     ): String = withContext(Dispatchers.IO) {
         val outputDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: context.filesDir
         val outputFile = File(outputDir, outputName)
+
+        AppLogger.log("FFmpeg", "framesDir=$framesDir audio=$audioPath srt=$srtPath")
+        AppLogger.log("FFmpeg", "output=${outputFile.absolutePath}")
+
+        val frameCount = File(framesDir).listFiles()?.size ?: 0
+        AppLogger.log("FFmpeg", "frames trouvés : $frameCount")
+        if (frameCount == 0) throw RuntimeException("Aucun frame JPEG dans $framesDir")
+
         val vf = buildString {
             if (srtPath != null) append("subtitles='$srtPath',")
             append("scale=1080:1080")
@@ -30,9 +38,16 @@ class VideoExporter(private val context: Context) {
             if (audioPath != null) append("-c:a aac -shortest ")
             append("-y '${outputFile.absolutePath}'")
         }
+        AppLogger.log("FFmpeg", "cmd: $cmd")
+
         val session = FFmpegKit.execute(cmd)
+        val logs = session.allLogsAsString ?: ""
+        AppLogger.log("FFmpeg", "rc=${session.returnCode} logs=${logs.takeLast(500)}")
+
         if (!ReturnCode.isSuccess(session.returnCode))
-            throw RuntimeException("FFmpeg failed: ${session.allLogsAsString}")
+            throw RuntimeException("FFmpeg a échoué (rc=${session.returnCode})\n${logs.takeLast(300)}")
+
+        AppLogger.log("FFmpeg", "succès → ${outputFile.absolutePath}")
         outputFile.absolutePath
     }
 

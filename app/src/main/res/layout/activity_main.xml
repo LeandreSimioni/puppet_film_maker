@@ -144,7 +144,16 @@
             android:layout_height="wrap_content"
             android:text="Clé API Mistral"
             android:backgroundTint="#1a1a1a"
-            android:textColor="#444" />
+            android:textColor="#444"
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/btnLogs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Voir logs"
+            android:backgroundTint="#1a1a1a"
+            android:textColor="#666" />
 
     </LinearLayout>
 </ScrollView>

@@ -7,6 +7,8 @@ import android.text.InputType
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
+import android.widget.ScrollView
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -14,17 +16,6 @@ import com.google.gson.JsonArray
 import eu.ueueue.muppet.databinding.ActivityMainBinding
 import kotlinx.coroutines.launch
 
-/**
- * Flow complet :
- *
- * 1. Saisie texte brut
- * 2. Rédacteur LLM → script avec didascalies [éditable]
- * 3. Valider → TTS → audio WAV
- * 4. STT → timestamps mot par mot
- * 5. Orchestrateur LLM → timeline JSON [éditable / raffinable]
- * 6. Rendu Three.js → frames JPEG → FFmpegKit → MP4
- * 7. Chat de correction → nouvelle timeline → nouveau rendu (audio réutilisé)
- */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -32,7 +23,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var videoExporter: VideoExporter
     private lateinit var mistralClient: MistralClient
 
-    // État courant de la session
     private var currentScript: String = ""
     private var currentAudioPath: String? = null
     private var currentSttResult: SttResult? = null
@@ -40,6 +30,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppLogger.init(this)
+        installCrashHandler()
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -51,9 +44,22 @@ class MainActivity : AppCompatActivity() {
         checkApiKey()
 
         lifecycleScope.launch {
-            binding.statusText.text = "Chargement de la configuration..."
-            GitHubConfig.load(assets)
-            binding.statusText.text = "Prêt."
+            setStatus("Chargement de la configuration...")
+            try {
+                GitHubConfig.load(assets)
+                setStatus("Prêt.")
+            } catch (e: Exception) {
+                AppLogger.err("Config", "load failed", e)
+                setStatus("Config GitHub indisponible — fallback local.")
+            }
+        }
+    }
+
+    private fun installCrashHandler() {
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, ex ->
+            AppLogger.err("CRASH", "thread=${thread.name}", ex)
+            defaultHandler?.uncaughtException(thread, ex)
         }
     }
 
@@ -65,70 +71,125 @@ class MainActivity : AppCompatActivity() {
         }
         puppetBridge = PuppetBridge(this, videoExporter)
         binding.webView.addJavascriptInterface(puppetBridge, "Android")
-        binding.webView.webViewClient = WebViewClient()
+        binding.webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                AppLogger.log("WebView", "page chargée : $url")
+            }
+        }
         binding.webView.loadUrl("file:///android_asset/puppet/index.html")
     }
 
     private fun setupButtons() {
 
-        // ÉTAPE 1 : générer le script avec didascalies
         binding.btnRedact.setOnClickListener {
             val subject = binding.scriptInput.text.toString()
             if (subject.isBlank()) return@setOnClickListener
             lifecycleScope.launch {
-                binding.statusText.text = "Rédaction du script..."
-                val script = mistralClient.redact(subject)
-                binding.scriptInput.setText(script)
-                binding.statusText.text = "Script généré — modifie-le si besoin, puis valide."
+                try {
+                    setStatus("Rédaction du script...")
+                    val script = mistralClient.redact(subject)
+                    binding.scriptInput.setText(script)
+                    setStatus("Script généré — modifie-le si besoin, puis valide.")
+                } catch (e: Exception) {
+                    showError("Erreur rédaction", e)
+                }
             }
         }
 
-        // ÉTAPE 2 : valider le script → TTS → STT → Orchestrateur
         binding.btnValidate.setOnClickListener {
             currentScript = binding.scriptInput.text.toString()
             if (currentScript.isBlank()) return@setOnClickListener
             lifecycleScope.launch {
-                generateAudioAndOrchestrate()
+                try {
+                    generateAudioAndOrchestrate()
+                } catch (e: Exception) {
+                    showError("Erreur pipeline audio", e)
+                }
             }
         }
 
-        // ÉTAPE 3 : lancer le rendu avec la timeline courante
         binding.btnRender.setOnClickListener {
             val timeline = currentTimeline ?: return@setOnClickListener
             val stt = currentSttResult ?: return@setOnClickListener
             val audio = currentAudioPath ?: return@setOnClickListener
             lifecycleScope.launch {
-                launchRender(timeline, stt, audio)
+                try {
+                    launchRender(timeline, stt, audio)
+                } catch (e: Exception) {
+                    showError("Erreur rendu", e)
+                }
             }
         }
 
-        // ÉTAPE 4 : corriger la timeline via chat
         binding.btnRefine.setOnClickListener {
             val request = binding.refineInput.text.toString()
             val timeline = currentTimeline ?: return@setOnClickListener
             val stt = currentSttResult ?: return@setOnClickListener
             if (request.isBlank()) return@setOnClickListener
             lifecycleScope.launch {
-                binding.statusText.text = "Correction de la timeline..."
-                val newTimeline = mistralClient.refineOrchestration(timeline, request, stt)
-                currentTimeline = newTimeline
-                binding.statusText.text = "Timeline corrigée — relance le rendu."
+                try {
+                    setStatus("Correction de la timeline...")
+                    val newTimeline = mistralClient.refineOrchestration(timeline, request, stt)
+                    currentTimeline = newTimeline
+                    setStatus("Timeline corrigée — relance le rendu.")
+                } catch (e: Exception) {
+                    showError("Erreur correction", e)
+                }
             }
         }
 
-        // Test Phase 1 — export sans audio
         binding.btnTestExport.setOnClickListener {
-            binding.statusText.text = "Test export 5s..."
-            binding.webView.evaluateJavascript("startRender(150, 30)", null)
+            AppLogger.log("UI", "btnTestExport cliqué")
+            setStatus("Test export 5s — démarrage rendu JS...")
+            binding.webView.evaluateJavascript("startRender(150, 30)") { result ->
+                AppLogger.log("WebView", "startRender retour JS : $result")
+            }
         }
 
+        binding.btnLogs.setOnClickListener { showLogsDialog() }
+
         binding.btnApiKey.setOnClickListener { promptApiKey() }
+    }
+
+    fun setStatus(msg: String) {
+        AppLogger.log("Status", msg)
+        binding.statusText.text = msg
+    }
+
+    fun showError(context: String, e: Throwable? = null) {
+        val msg = if (e != null) "$context : ${e.message}" else context
+        AppLogger.err("UI", msg, e)
+        binding.statusText.text = "⚠ $msg — voir Logs"
+    }
+
+    private fun showLogsDialog() {
+        val tv = TextView(this).apply {
+            text = AppLogger.read()
+            setPadding(32, 24, 32, 24)
+            setTextColor(0xFFE8E0D0.toInt())
+            setBackgroundColor(0xFF0A0400.toInt())
+            textSize = 10f
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+        val scroll = ScrollView(this).apply {
+            addView(tv)
+            post { fullScroll(ScrollView.FOCUS_DOWN) }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Logs")
+            .setView(scroll)
+            .setPositiveButton("Fermer", null)
+            .setNeutralButton("Copier") { _, _ ->
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("logs", AppLogger.read()))
+                setStatus("Logs copiés dans le presse-papier.")
+            }
+            .show()
     }
 
     private fun checkApiKey() {
         val prefs = getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
         if (prefs.getString("mistral_api_key", null).isNullOrBlank()) {
-            // Tenter migration config.json
             try {
                 assets.open("config/config.json").use {
                     val key = com.google.gson.Gson()
@@ -159,7 +220,7 @@ class MainActivity : AppCompatActivity() {
                 if (key.isNotBlank()) {
                     getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
                         .edit().putString("mistral_api_key", key).apply()
-                    binding.statusText.text = "Clé API sauvegardée."
+                    setStatus("Clé API sauvegardée.")
                     onSaved?.invoke()
                 }
             }
@@ -168,26 +229,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private suspend fun generateAudioAndOrchestrate() {
-        // TTS : texte seul (sans les didascalies)
-        binding.statusText.text = "Synthèse vocale..."
+        setStatus("Synthèse vocale...")
         val textOnly = extractTextOnly(currentScript)
         currentAudioPath = mistralClient.tts(textOnly)
 
-        // STT : timestamps précis
-        binding.statusText.text = "Analyse des timestamps..."
+        setStatus("Analyse des timestamps...")
         currentSttResult = mistralClient.stt(currentAudioPath!!)
 
-        // Orchestrateur : script complet + timestamps → timeline
-        binding.statusText.text = "Orchestration..."
+        setStatus("Orchestration...")
         currentTimeline = mistralClient.orchestrate(currentScript, currentSttResult!!)
 
-        binding.statusText.text = "Timeline prête — lance le rendu ou demande des corrections."
+        setStatus("Timeline prête — lance le rendu ou demande des corrections.")
         binding.btnRender.isEnabled = true
         binding.btnRefine.isEnabled = true
     }
 
     private suspend fun launchRender(timeline: JsonArray, stt: SttResult, audioPath: String) {
-        binding.statusText.text = "Rendu en cours..."
+        setStatus("Rendu en cours...")
         val srtPath = videoExporter.generateSrt(stt)
         val timelineJson = timeline.toString()
         val wordsJson = stt.words.joinToString(",", "[", "]") {
@@ -196,32 +254,31 @@ class MainActivity : AppCompatActivity() {
         binding.webView.evaluateJavascript(
             "startRenderWithTimeline($timelineJson, ${stt.durationSeconds}, $wordsJson)", null
         )
-        // La suite est gérée par onRenderComplete via PuppetBridge
         puppetBridge.pendingAudioPath = audioPath
         puppetBridge.pendingSrtPath = srtPath
     }
 
     fun onRenderComplete(framesDir: String, frameCount: Int) {
-        binding.statusText.text = "Assemblage vidéo..."
+        setStatus("Assemblage vidéo ($frameCount frames)...")
         lifecycleScope.launch {
-            val outputPath = videoExporter.assembleVideo(
-                framesDir = framesDir,
-                audioPath = puppetBridge.pendingAudioPath,
-                srtPath = puppetBridge.pendingSrtPath,
-                fps = 30,
-                outputName = "muppet_${System.currentTimeMillis()}.mp4"
-            )
-            MediaScannerConnection.scanFile(
-                this@MainActivity, arrayOf(outputPath), arrayOf("video/mp4"), null
-            )
-            binding.statusText.text = "✓ $outputPath"
+            try {
+                val outputPath = videoExporter.assembleVideo(
+                    framesDir = framesDir,
+                    audioPath = puppetBridge.pendingAudioPath,
+                    srtPath = puppetBridge.pendingSrtPath,
+                    fps = 30,
+                    outputName = "muppet_${System.currentTimeMillis()}.mp4"
+                )
+                MediaScannerConnection.scanFile(
+                    this@MainActivity, arrayOf(outputPath), arrayOf("video/mp4"), null
+                )
+                setStatus("✓ Vidéo créée : $outputPath")
+            } catch (e: Exception) {
+                showError("Assemblage FFmpeg", e)
+            }
         }
     }
 
-    /**
-     * Extrait uniquement le texte parlé — retire les didascalies entre crochets.
-     */
-    private fun extractTextOnly(script: String): String {
-        return script.replace(Regex("\\[.*?\\]"), "").trim()
-    }
+    private fun extractTextOnly(script: String): String =
+        script.replace(Regex("\\[.*?\\]"), "").trim()
 }
