@@ -34,7 +34,7 @@ class VideoExporter(private val context: Context) {
         val cmd = buildString {
             append("-framerate $fps -i '$framesDir/frame_%04d.jpg' ")
             if (audioPath != null) append("-i '$audioPath' ")
-            append("-vf '$vf' -c:v libx264 -preset fast -crf 23 ")
+            append("-vf '$vf' -c:v h264_mediacodec -b:v 6M ")
             if (audioPath != null) append("-c:a aac -shortest ")
             append("-y '${outputFile.absolutePath}'")
         }
