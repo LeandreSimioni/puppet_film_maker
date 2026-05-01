@@ -135,7 +135,16 @@
             android:layout_height="wrap_content"
             android:text="[DEV] Test export 5s sans audio"
             android:backgroundTint="#1a1a1a"
-            android:textColor="#555" />
+            android:textColor="#555"
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/btnApiKey"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Clé API Mistral"
+            android:backgroundTint="#1a1a1a"
+            android:textColor="#444" />
 
     </LinearLayout>
 </ScrollView>

@@ -1,9 +1,13 @@
 package eu.ueueue.muppet
 
+import android.content.Context
 import android.media.MediaScannerConnection
 import android.os.Bundle
+import android.text.InputType
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.EditText
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.gson.JsonArray
@@ -44,8 +48,8 @@ class MainActivity : AppCompatActivity() {
 
         setupWebView()
         setupButtons()
+        checkApiKey()
 
-        // Charger les fichiers de config depuis GitHub au démarrage
         lifecycleScope.launch {
             binding.statusText.text = "Chargement de la configuration..."
             GitHubConfig.load(assets)
@@ -117,6 +121,50 @@ class MainActivity : AppCompatActivity() {
             binding.statusText.text = "Test export 5s..."
             binding.webView.evaluateJavascript("startRender(150, 30)", null)
         }
+
+        binding.btnApiKey.setOnClickListener { promptApiKey() }
+    }
+
+    private fun checkApiKey() {
+        val prefs = getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+        if (prefs.getString("mistral_api_key", null).isNullOrBlank()) {
+            // Tenter migration config.json
+            try {
+                assets.open("config/config.json").use {
+                    val key = com.google.gson.Gson()
+                        .fromJson(it.reader(), com.google.gson.JsonObject::class.java)
+                        .get("mistral_api_key")?.asString
+                    if (!key.isNullOrBlank()) {
+                        prefs.edit().putString("mistral_api_key", key).apply()
+                        return
+                    }
+                }
+            } catch (e: Exception) { /* pas de config.json */ }
+            promptApiKey()
+        }
+    }
+
+    fun promptApiKey(onSaved: (() -> Unit)? = null) {
+        val input = EditText(this).apply {
+            hint = "sk-..."
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setPadding(48, 32, 48, 32)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Clé API Mistral")
+            .setMessage("Stockée uniquement sur cet appareil — jamais dans le code ni le repo.")
+            .setView(input)
+            .setPositiveButton("Enregistrer") { _, _ ->
+                val key = input.text.toString().trim()
+                if (key.isNotBlank()) {
+                    getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+                        .edit().putString("mistral_api_key", key).apply()
+                    binding.statusText.text = "Clé API sauvegardée."
+                    onSaved?.invoke()
+                }
+            }
+            .setNegativeButton("Annuler", null)
+            .show()
     }
 
     private suspend fun generateAudioAndOrchestrate() {
