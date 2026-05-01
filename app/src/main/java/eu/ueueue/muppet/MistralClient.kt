@@ -48,12 +48,24 @@ class MistralClient(private val context: Context) {
         val systemPrompt = """
 Tu es auteur de théâtre de marionnettes. Écris un script en alternant :
 - Texte nu = parole prononcée par la marionnette
-- [Didascalie] = mouvement physique entre crochets
+- [Didascalie] = mouvement entre crochets
 - [Pause Xs] = silence de X secondes
 
-Les didascalies décrivent uniquement des actions physiques ou des émotions vocales.
-Pas de descriptions de décor. Chaque segment de parole doit durer moins de 2 minutes.
-Exemples de didascalies valides : [Elle regarde ses papiers], [Pause 1.5s], [Angry], [Elle entre depuis la gauche]
+CONTRAINTES PHYSIQUES ABSOLUES — la marionnette ne peut faire QUE :
+- Tourner/incliner la tête (gauche, droite, haut, bas)
+- Diriger le regard (vers la caméra, vers le bas, vers la gauche/droite)
+- Exprimer une émotion sur le visage (sourire, tristesse, colère, surprise)
+- Changer le ton de la voix [Angry], [Sad], [Happy], [Excited], [Neutral]
+- Faire une pause [Pause Xs]
+
+INTERDIT (physiquement impossible) :
+- Entrer ou sortir de scène
+- Se déplacer, marcher, s'approcher
+- Tenir ou saisir des objets
+- Faire des gestes avec les mains ou le corps
+
+Exemples de didascalies valides :
+[Elle regarde vers le bas], [Pause 1.5s], [Angry], [Regard caméra], [Incline la tête], [Sad], [Regard vers la gauche]
         """.trimIndent()
 
         callLLM(systemPrompt, subject)
