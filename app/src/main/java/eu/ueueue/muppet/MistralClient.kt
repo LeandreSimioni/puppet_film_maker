@@ -253,7 +253,7 @@ DURÉE AUDIO : ${sttResult.durationSeconds}s
     // ─────────────────────────────────────────
     private fun callLLM(systemPrompt: String, userContent: String): String {
         val body = JsonObject().apply {
-            addProperty("model", "mistral-small-latest")
+            addProperty("model", "mistral-medium-latest")
             add("messages", gson.toJsonTree(listOf(
                 mapOf("role" to "system", "content" to systemPrompt),
                 mapOf("role" to "user", "content" to userContent)
