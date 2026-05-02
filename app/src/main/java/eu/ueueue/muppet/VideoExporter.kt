@@ -18,39 +18,81 @@ class VideoExporter(private val context: Context) {
         audioPath: String?,
         srtPath: String?,
         fps: Int = 30,
-        outputName: String = "muppet_${System.currentTimeMillis()}.mp4"
+        outputName: String = "muppet_${System.currentTimeMillis()}.mp4",
+        introCardPath: String? = null,
+        outroCardPath: String? = null,
+        cardDurationSeconds: Double = 2.5
     ): String = withContext(Dispatchers.IO) {
         val frameCount = File(framesDir).listFiles()?.size ?: 0
-        AppLogger.log("FFmpeg", "frames trouvés : $frameCount")
+        AppLogger.log("FFmpeg", "frames: $frameCount, intro: $introCardPath, outro: $outroCardPath")
         if (frameCount == 0) throw RuntimeException("Aucun frame JPEG dans $framesDir")
 
-        // Passe 1 : vidéo seule (h264_mediacodec ne mixe pas l'audio)
-        val tempVideo = File(context.cacheDir, "vid_${System.currentTimeMillis()}.mp4")
-        val cmd1 = "-framerate $fps -i '$framesDir/frame_%04d.jpg' " +
-                   "-vf 'scale=1080:1080' -c:v h264_mediacodec -b:v 6M " +
-                   "-y '${tempVideo.absolutePath}'"
-        AppLogger.log("FFmpeg", "passe 1 (vidéo): $cmd1")
-        runFFmpeg(cmd1)
+        // Passe 1 : vidéo principale
+        val mainVid = File(context.cacheDir, "vid_main_${System.currentTimeMillis()}.mp4")
+        runFFmpeg("-framerate $fps -i '$framesDir/frame_%04d.jpg' " +
+                  "-vf 'scale=1080:1080' -c:v h264_mediacodec -b:v 6M " +
+                  "-y '${mainVid.absolutePath}'")
 
-        // Passe 2 : mux vidéo + audio (+ sous-titres optionnels) avec copy vidéo
+        // Cartes intro/outro → segments vidéo à durée fixe
+        val introVid = introCardPath?.let { encodeCardSegment(it, cardDurationSeconds, fps) }
+        val outroVid  = outroCardPath?.let { encodeCardSegment(it, cardDurationSeconds, fps) }
+
+        // Concat vidéo : [intro?] + main + [outro?]
+        val videoParts = listOfNotNull(introVid, mainVid, outroVid)
+        val combinedVid = if (videoParts.size == 1) mainVid else concatVideos(videoParts)
+
+        // Ajustement audio : ajouter silence pour chaque carte présente
+        val finalAudio = if (audioPath != null && (introVid != null || outroVid != null)) {
+            val parts = mutableListOf<File>()
+            if (introVid != null) parts += createSilenceWav(cardDurationSeconds)
+            parts += File(audioPath)
+            if (outroVid != null) parts += createSilenceWav(cardDurationSeconds)
+            val out = File(context.cacheDir, "audio_cards_${System.currentTimeMillis()}.m4a").absolutePath
+            concatenateAudio(parts, out)
+            out
+        } else audioPath
+
+        // Passe 2 : mux vidéo + audio
         val tempFinal = File(context.cacheDir, outputName)
         val cmd2 = buildString {
-            append("-i '${tempVideo.absolutePath}' ")
-            if (audioPath != null) append("-i '$audioPath' ")
+            append("-i '${combinedVid.absolutePath}' ")
+            if (finalAudio != null) append("-i '$finalAudio' ")
             append("-map 0:v ")
-            if (audioPath != null) append("-map 1:a ")
+            if (finalAudio != null) append("-map 1:a ")
             append("-c:v copy ")
-            if (audioPath != null) append("-c:a aac -ar 44100 -shortest ")
+            if (finalAudio != null) append("-c:a aac -ar 44100 -shortest ")
             append("-y '${tempFinal.absolutePath}'")
         }
-        AppLogger.log("FFmpeg", "passe 2 (mux): $cmd2")
         runFFmpeg(cmd2)
-        tempVideo.delete()
+
+        // Nettoyage fichiers temporaires
+        if (combinedVid != mainVid) combinedVid.delete()
+        introVid?.delete()
+        outroVid?.delete()
+        mainVid.delete()
+        if (finalAudio != null && finalAudio != audioPath) File(finalAudio).delete()
 
         val finalPath = copyToDownloads(tempFinal, outputName)
         tempFinal.delete()
         AppLogger.log("FFmpeg", "succès → $finalPath")
         finalPath
+    }
+
+    private fun encodeCardSegment(imagePath: String, durationSeconds: Double, fps: Int): File {
+        val out = File(context.cacheDir, "card_${System.currentTimeMillis()}.mp4")
+        runFFmpeg("-loop 1 -framerate $fps -t $durationSeconds -i '$imagePath' " +
+                  "-vf 'scale=1080:1080' -c:v h264_mediacodec -b:v 6M " +
+                  "-y '${out.absolutePath}'")
+        return out
+    }
+
+    private fun concatVideos(parts: List<File>): File {
+        val listFile = File(context.cacheDir, "vlist_${System.currentTimeMillis()}.txt")
+        listFile.writeText(parts.joinToString("\n") { "file '${it.absolutePath}'" })
+        val out = File(context.cacheDir, "vcombined_${System.currentTimeMillis()}.mp4")
+        runFFmpeg("-f concat -safe 0 -i '${listFile.absolutePath}' -c copy -y '${out.absolutePath}'")
+        listFile.delete()
+        return out
     }
 
     private fun runFFmpeg(cmd: String) {
