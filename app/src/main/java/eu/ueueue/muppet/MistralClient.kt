@@ -207,9 +207,15 @@ Tu es régisseur de marionnettes. On te donne un script avec didascalies et les 
 Génère une timeline JSON d'actions dans ce format exact :
 [{"t": 0.0, "action": "setGaze", "gx": 0, "gy": -0.8}, ...]
 Les t sont en secondes depuis le début de l'audio.
-Actions disponibles : setGaze(gx,gy), setRoll(rad), setEmotion(e), setVoiceEmotion(e), playGesture(g), moveX(x), pause(s).
-NE PAS générer setOpen — le lip sync est automatique.
+Actions disponibles : setGaze(gx,gy), setRoll(rad), setEmotion(e), moveX(x).
+NE PAS générer setOpen — le lip sync bouche est automatique via les timestamps STT.
 Réponds UNIQUEMENT avec le JSON, sans commentaire.
+
+GESTION DES PAUSES ET SILENCES :
+- Entre deux mots, la bouche se ferme automatiquement — tu n'as rien à faire.
+- Si le script contient [Pause Xs] ou un silence naturel entre phrases, NE GÉNÈRE PAS d'actions pendant cet intervalle.
+- "Ne rien faire" = laisser le puppet dans son dernier état. C'est valide et intentionnel.
+- Tu peux utiliser un silence pour un regard expressif déjà posé, sans le modifier.
 
 === CONTRAINTES PHYSIQUES ===
 ${GitHubConfig.constraints}
