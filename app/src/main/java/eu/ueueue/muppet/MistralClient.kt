@@ -157,20 +157,17 @@ Exemples de didascalies valides :
     // ÉTAPE 3 : STT — audio → timestamps mot par mot
     // ─────────────────────────────────────────
     suspend fun stt(audioPath: String): SttResult = withContext(Dispatchers.IO) {
-        val audioBytes = File(audioPath).readBytes()
-        val base64Audio = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
-        val body = JsonObject().apply {
-            addProperty("model", "voxtral-mini-latest")
-            add("file", JsonObject().apply {
-                addProperty("content", base64Audio)
-                addProperty("file_name", "audio.mp3")
-            })
-            add("timestamp_granularities", gson.toJsonTree(listOf("word")))
-        }
+        val audioFile = File(audioPath)
+        val multipart = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("file", audioFile.name, audioFile.asRequestBody("audio/mpeg".toMediaType()))
+            .addFormDataPart("model", "voxtral-mini-latest")
+            .addFormDataPart("timestamp_granularities[]", "word")
+            .build()
         val request = Request.Builder()
             .url("https://api.mistral.ai/v1/audio/transcriptions")
             .header("Authorization", "Bearer $apiKey")
-            .post(body.toString().toRequestBody("application/json".toMediaType()))
+            .post(multipart)
             .build()
         val response = http.newCall(request).execute()
         val responseBody = response.body!!.string()
