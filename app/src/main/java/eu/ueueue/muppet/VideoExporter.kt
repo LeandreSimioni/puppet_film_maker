@@ -85,6 +85,35 @@ class VideoExporter(private val context: Context) {
         }
     }
 
+    fun createSilenceWav(durationSeconds: Double): File {
+        val sampleRate = 22050
+        val numSamples = (durationSeconds * sampleRate).toInt().coerceAtLeast(1)
+        val dataSize = numSamples * 2 // 16-bit mono
+        val file = File(context.cacheDir, "silence_${System.currentTimeMillis()}.wav")
+        file.outputStream().use { out ->
+            fun writeInt(v: Int) = out.write(byteArrayOf(v.toByte(), (v shr 8).toByte(), (v shr 16).toByte(), (v shr 24).toByte()))
+            fun writeShort(v: Int) = out.write(byteArrayOf(v.toByte(), (v shr 8).toByte()))
+            out.write("RIFF".toByteArray())
+            writeInt(36 + dataSize)
+            out.write("WAVEfmt ".toByteArray())
+            writeInt(16); writeShort(1); writeShort(1) // PCM, mono
+            writeInt(sampleRate); writeInt(sampleRate * 2) // byteRate
+            writeShort(2); writeShort(16) // blockAlign, bitsPerSample
+            out.write("data".toByteArray())
+            writeInt(dataSize)
+            out.write(ByteArray(dataSize)) // silence = zeros
+        }
+        return file
+    }
+
+    fun concatenateAudio(parts: List<File>, outputPath: String) {
+        if (parts.size == 1) { parts[0].copyTo(File(outputPath), overwrite = true); return }
+        val listFile = File(context.cacheDir, "concat_${System.currentTimeMillis()}.txt")
+        listFile.writeText(parts.joinToString("\n") { "file '${it.absolutePath}'" })
+        runFFmpeg("-f concat -safe 0 -i '${listFile.absolutePath}' -c:a aac -ar 22050 -y '$outputPath'")
+        listFile.delete()
+    }
+
     fun generateSrt(timestamps: SttResult): String {
         val srtFile = File(context.cacheDir, "subs_${System.currentTimeMillis()}.srt")
         val sb = StringBuilder()

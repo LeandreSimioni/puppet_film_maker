@@ -268,8 +268,7 @@ class MainActivity : AppCompatActivity() {
 
     private suspend fun generateAudioAndOrchestrate() {
         setStatus("Synthèse vocale...")
-        val textOnly = extractTextOnly(currentScript)
-        currentAudioPath = mistralClient.tts(textOnly)
+        currentAudioPath = mistralClient.ttsWithScript(currentScript, videoExporter)
 
         setStatus("Analyse des timestamps...")
         currentSttResult = mistralClient.stt(currentAudioPath!!)

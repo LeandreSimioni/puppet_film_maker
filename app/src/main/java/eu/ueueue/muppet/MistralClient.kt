@@ -118,9 +118,54 @@ Exemples de didascalies valides :
     }
 
     // ─────────────────────────────────────────
-    // ÉTAPE 2 : TTS — script texte seul → audio WAV
-    // L'émotion vocale peut varier par segment selon les didascalies
+    // ÉTAPE 2 : TTS — script → audio avec vraies pauses
+    // Découpe le script aux [Pause Xs], TTS chaque segment, concatenate
     // ─────────────────────────────────────────
+    suspend fun ttsWithScript(script: String, exporter: VideoExporter): String =
+        withContext(Dispatchers.IO) {
+            val pauseRegex = Regex("""\[Pause\s+(\d+\.?\d*)s\]""", RegexOption.IGNORE_CASE)
+            val bracketRegex = Regex("""\[.*?\]""")
+            data class Seg(val text: String?, val pause: Double?)
+
+            val segments = mutableListOf<Seg>()
+            val buf = StringBuilder()
+            for (line in script.lines()) {
+                val t = line.trim()
+                val m = pauseRegex.find(t)
+                when {
+                    m != null -> {
+                        val txt = buf.toString().trim()
+                        if (txt.isNotBlank()) { segments += Seg(txt, null); buf.clear() }
+                        segments += Seg(null, m.groupValues[1].toDouble())
+                    }
+                    t.matches(Regex("""\[.*\]""")) -> { /* didascalie non-pause, skip */ }
+                    t.isNotBlank() -> buf.appendLine(t.replace(bracketRegex, "").trim())
+                }
+            }
+            val rem = buf.toString().trim()
+            if (rem.isNotBlank()) segments += Seg(rem, null)
+
+            // Si aucune pause → appel simple
+            if (segments.none { it.pause != null })
+                return@withContext tts(segments.mapNotNull { it.text }.joinToString(" "))
+
+            // Générer chaque partie
+            val parts = mutableListOf<File>()
+            for (seg in segments) {
+                if (seg.text != null) {
+                    parts += File(tts(seg.text))
+                } else if (seg.pause != null) {
+                    parts += exporter.createSilenceWav(seg.pause)
+                }
+            }
+
+            // Concatener
+            val out = File(context.cacheDir, "tts_${System.currentTimeMillis()}.m4a").absolutePath
+            exporter.concatenateAudio(parts, out)
+            parts.forEach { if (it.name.startsWith("silence_")) it.delete() }
+            out
+        }
+
     suspend fun tts(text: String): String =
         withContext(Dispatchers.IO) {
             val marieId = resolveMarieVoiceId()
