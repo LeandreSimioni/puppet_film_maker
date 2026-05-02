@@ -114,6 +114,30 @@ class VideoExporter(private val context: Context) {
         listFile.delete()
     }
 
+    data class SilenceInsertion(val atSeconds: Double, val duration: Double)
+
+    fun applyAudioInsertions(audioPath: String, insertions: List<SilenceInsertion>): String {
+        if (insertions.isEmpty()) return audioPath
+        val sorted = insertions.sortedBy { it.atSeconds }
+        val parts = mutableListOf<File>()
+        var prev = 0.0
+        for (ins in sorted) {
+            val seg = File(context.cacheDir, "aseg_${System.currentTimeMillis()}_${parts.size}.wav")
+            runFFmpeg("-i '$audioPath' -ss $prev -to ${ins.atSeconds} -ar 22050 -ac 1 '${seg.absolutePath}'")
+            parts += seg
+            parts += createSilenceWav(ins.duration)
+            prev = ins.atSeconds
+        }
+        val last = File(context.cacheDir, "aseg_${System.currentTimeMillis()}_last.wav")
+        runFFmpeg("-i '$audioPath' -ss $prev -ar 22050 -ac 1 '${last.absolutePath}'")
+        parts += last
+        val out = File(context.cacheDir, "audio_${System.currentTimeMillis()}.m4a").absolutePath
+        concatenateAudio(parts, out)
+        parts.forEach { it.delete() }
+        AppLogger.log("FFmpeg", "audio modifié avec ${insertions.size} silence(s) → $out")
+        return out
+    }
+
     fun generateSrt(timestamps: SttResult): String {
         val srtFile = File(context.cacheDir, "subs_${System.currentTimeMillis()}.srt")
         val sb = StringBuilder()

@@ -118,54 +118,9 @@ Exemples de didascalies valides :
     }
 
     // ─────────────────────────────────────────
-    // ÉTAPE 2 : TTS — script → audio avec vraies pauses
-    // Découpe le script aux [Pause Xs], TTS chaque segment, concatenate
+    // ÉTAPE 2 : TTS — texte brut → audio
+    // Simple et sans logique de timing. L'orchestrateur a le mot final.
     // ─────────────────────────────────────────
-    suspend fun ttsWithScript(script: String, exporter: VideoExporter): String =
-        withContext(Dispatchers.IO) {
-            val pauseRegex = Regex("""\[Pause\s+(\d+\.?\d*)s\]""", RegexOption.IGNORE_CASE)
-            val bracketRegex = Regex("""\[.*?\]""")
-            data class Seg(val text: String?, val pause: Double?)
-
-            val segments = mutableListOf<Seg>()
-            val buf = StringBuilder()
-            for (line in script.lines()) {
-                val t = line.trim()
-                val m = pauseRegex.find(t)
-                when {
-                    m != null -> {
-                        val txt = buf.toString().trim()
-                        if (txt.isNotBlank()) { segments += Seg(txt, null); buf.clear() }
-                        segments += Seg(null, m.groupValues[1].toDouble())
-                    }
-                    t.matches(Regex("""\[.*\]""")) -> { /* didascalie non-pause, skip */ }
-                    t.isNotBlank() -> buf.appendLine(t.replace(bracketRegex, "").trim())
-                }
-            }
-            val rem = buf.toString().trim()
-            if (rem.isNotBlank()) segments += Seg(rem, null)
-
-            // Si aucune pause → appel simple
-            if (segments.none { it.pause != null })
-                return@withContext tts(segments.mapNotNull { it.text }.joinToString(" "))
-
-            // Générer chaque partie
-            val parts = mutableListOf<File>()
-            for (seg in segments) {
-                if (seg.text != null) {
-                    parts += File(tts(seg.text))
-                } else if (seg.pause != null) {
-                    parts += exporter.createSilenceWav(seg.pause)
-                }
-            }
-
-            // Concatener
-            val out = File(context.cacheDir, "tts_${System.currentTimeMillis()}.m4a").absolutePath
-            exporter.concatenateAudio(parts, out)
-            parts.forEach { if (it.name.startsWith("silence_")) it.delete() }
-            out
-        }
-
     suspend fun tts(text: String): String =
         withContext(Dispatchers.IO) {
             val marieId = resolveMarieVoiceId()
@@ -248,19 +203,29 @@ Exemples de didascalies valides :
     suspend fun orchestrate(script: String, sttResult: SttResult): JsonArray =
         withContext(Dispatchers.IO) {
             val systemPrompt = """
-Tu es régisseur de marionnettes. On te donne un script avec didascalies et les timestamps de chaque mot parlé.
-Génère une timeline JSON d'actions dans ce format exact :
-[{"t": 0.0, "action": "setGaze", "gx": 0, "gy": -0.8}, ...]
-Les t sont en secondes depuis le début de l'audio.
-Actions disponibles : setGaze(gx,gy), setRoll(rad), setEmotion(e), moveX(x).
-NE PAS générer setOpen — le lip sync bouche est automatique via les timestamps STT.
+Tu es le RÉGISSEUR FINAL. Le script et l'audio brut sont ta matière première — tu as le mot final sur tout.
+Tu génères une timeline JSON qui contrôle absolument tout : animation, audio, fond.
+
+FORMAT : [{"t": 0.0, "action": "...", ...}, ...]
+Les "t" sont en secondes depuis le début de l'audio original.
+
+ACTIONS DISPONIBLES :
+- setGaze(gx, gy)       : direction du regard (-1..1)
+- setRoll(rad)          : inclinaison tête en radians
+- setEmotion(e)         : expression visage (Neutral/Sad/Happy/Excited/Curious/Angry)
+- moveX(x)              : déplacement horizontal (-1..1)
+- insertSilence(duration) : coupe l'audio ici et insère X secondes de silence.
+                            Tous les timestamps après ce point seront décalés automatiquement.
+                            Utilise-le librement pour des effets dramatiques ou des respirations.
+- setBackground(url)    : change le fond visuel (réservé futur — inclure quand même si pertinent)
+
+NE PAS générer setOpen — le lip sync bouche est automatique.
 Réponds UNIQUEMENT avec le JSON, sans commentaire.
 
-GESTION DES PAUSES ET SILENCES :
-- Entre deux mots, la bouche se ferme automatiquement — tu n'as rien à faire.
-- Si le script contient [Pause Xs] ou un silence naturel entre phrases, NE GÉNÈRE PAS d'actions pendant cet intervalle.
-- "Ne rien faire" = laisser le puppet dans son dernier état. C'est valide et intentionnel.
-- Tu peux utiliser un silence pour un regard expressif déjà posé, sans le modifier.
+PHILOSOPHIE :
+- Tu es libre de restructurer le temps. Si le script dit [Pause 2s], insère un insertSilence(2.0) au bon moment.
+- "Ne rien faire" pendant un intervalle = puppet figé dans son dernier état — c'est intentionnel et expressif.
+- Tu n'es pas lié au rythme de l'audio brut. Tu peux ralentir, respirer, dramatiser.
 
 === CONTRAINTES PHYSIQUES ===
 ${GitHubConfig.constraints}

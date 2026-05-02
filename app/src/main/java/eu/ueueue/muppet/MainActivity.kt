@@ -268,7 +268,7 @@ class MainActivity : AppCompatActivity() {
 
     private suspend fun generateAudioAndOrchestrate() {
         setStatus("Synthèse vocale...")
-        currentAudioPath = mistralClient.ttsWithScript(currentScript, videoExporter)
+        currentAudioPath = mistralClient.tts(extractTextOnly(currentScript))
 
         setStatus("Analyse des timestamps...")
         currentSttResult = mistralClient.stt(currentAudioPath!!)
@@ -276,12 +276,38 @@ class MainActivity : AppCompatActivity() {
         setStatus("Orchestration...")
         currentTimeline = mistralClient.orchestrate(currentScript, currentSttResult!!)
 
+        // Appliquer les insertSilence décidés par l'orchestrateur
+        val insertions = currentTimeline!!.mapNotNull { el ->
+            val obj = el.asJsonObject
+            if (obj.get("action")?.asString == "insertSilence")
+                VideoExporter.SilenceInsertion(obj.get("t").asDouble, obj.get("duration").asDouble)
+            else null
+        }.sortedBy { it.atSeconds }
+
+        if (insertions.isNotEmpty()) {
+            setStatus("Insertion des silences (${insertions.size})...")
+            currentAudioPath = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                videoExporter.applyAudioInsertions(currentAudioPath!!, insertions)
+            }
+            currentSttResult = shiftTimestamps(currentSttResult!!, insertions)
+            // Retirer insertSilence de la timeline (déjà appliqué)
+            val filtered = com.google.gson.JsonArray()
+            currentTimeline!!.forEach { if (it.asJsonObject.get("action")?.asString != "insertSilence") filtered.add(it) }
+            currentTimeline = filtered
+        }
+
         setStatus("Timeline prête — modifie le JSON si besoin, puis lance le rendu.")
         binding.labelTimeline.visibility = View.VISIBLE
         binding.timelineInput.visibility = View.VISIBLE
         binding.timelineInput.setText(gson.toJson(currentTimeline))
         binding.btnRender.isEnabled = true
         binding.btnRefine.isEnabled = true
+    }
+
+    private fun shiftTimestamps(stt: SttResult, insertions: List<VideoExporter.SilenceInsertion>): SttResult {
+        fun offset(t: Double) = insertions.filter { it.atSeconds <= t }.sumOf { it.duration }
+        val shifted = stt.words.map { WordTimestamp(it.text, it.start + offset(it.start), it.end + offset(it.end)) }
+        return SttResult(shifted, shifted.lastOrNull()?.end ?: stt.durationSeconds)
     }
 
     private suspend fun launchRender(timeline: JsonArray, stt: SttResult, audioPath: String) {
