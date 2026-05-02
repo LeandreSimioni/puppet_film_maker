@@ -37,13 +37,10 @@ class VideoExporter(private val context: Context) {
         val cmd2 = buildString {
             append("-i '${tempVideo.absolutePath}' ")
             if (audioPath != null) append("-i '$audioPath' ")
-            if (srtPath != null) append("-i '$srtPath' ")
             append("-map 0:v ")
             if (audioPath != null) append("-map 1:a ")
-            if (srtPath != null) append("-map ${if (audioPath != null) 2 else 1}:s ")
             append("-c:v copy ")
             if (audioPath != null) append("-c:a aac -ar 44100 -shortest ")
-            if (srtPath != null) append("-c:s mov_text ")
             append("-y '${tempFinal.absolutePath}'")
         }
         AppLogger.log("FFmpeg", "passe 2 (mux): $cmd2")

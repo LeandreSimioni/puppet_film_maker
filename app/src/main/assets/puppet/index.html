@@ -5,6 +5,7 @@
 <style>* { margin:0; padding:0; } body { background:#150800; overflow:hidden; }</style>
 </head>
 <body>
+<canvas id="sub" width="1080" height="1080" style="display:none"></canvas>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 const W=1080,H=1080;
@@ -121,6 +122,33 @@ function computeLipSync(t,words){
   return 0;
 }
 
+const subCanvas=document.getElementById('sub');
+const subCtx=subCanvas.getContext('2d');
+
+function drawSubtitle(t,words){
+  subCtx.clearRect(0,0,W,H);
+  const w=words.find(w=>t>=w.start&&t<=w.end);
+  if(!w)return;
+  const text=w.text||w.word||'';
+  subCtx.font='bold 56px sans-serif';
+  subCtx.textAlign='center';
+  subCtx.lineWidth=6;
+  subCtx.strokeStyle='rgba(0,0,0,0.85)';
+  subCtx.strokeText(text,W/2,H-80);
+  subCtx.fillStyle='#ffffff';
+  subCtx.fillText(text,W/2,H-80);
+}
+
+function captureFrame(t,words){
+  const comp=document.createElement('canvas');
+  comp.width=W;comp.height=H;
+  const ctx=comp.getContext('2d');
+  ctx.drawImage(renderer.domElement,0,0);
+  drawSubtitle(t,words);
+  ctx.drawImage(subCanvas,0,0);
+  return comp.toDataURL('image/jpeg',0.9);
+}
+
 function startRenderWithTimeline(tl,duration,words){
   words=words||[];
   timeline=tl.map(e=>({...e,_done:false}));
@@ -138,7 +166,7 @@ function startRenderWithTimeline(tl,duration,words){
     state.mouthOpen=computeLipSync(t,words);
     updatePuppet();
     renderer.render(scene,camera);
-    Android.onFrame(renderer.domElement.toDataURL('image/jpeg',0.9),frame);
+    Android.onFrame(captureFrame(t,words),frame);
     frame++;
     setTimeout(next,0);
   }
