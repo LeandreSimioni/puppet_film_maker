@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
         setupButtons()
         checkApiKey()
         binding.scriptInput.setOnTouchListener { v, _ -> v.parent.requestDisallowInterceptTouchEvent(true); false }
+        binding.timelineInput.setOnTouchListener { v, _ -> v.parent.requestDisallowInterceptTouchEvent(true); false }
 
         lifecycleScope.launch {
             setStatus("Vérification des mises à jour...")
@@ -317,7 +318,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun injectBackground(path: String) {
-        binding.webView.evaluateJavascript("setBackgroundUrl('file://$path')", null)
+        lifecycleScope.launch(Dispatchers.IO) {
+            val bytes = File(path).readBytes()
+            val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            val ext = if (path.endsWith(".png")) "png" else "jpeg"
+            withContext(Dispatchers.Main) {
+                binding.webView.evaluateJavascript(
+                    "setBackgroundUrl('data:image/$ext;base64,$b64')", null
+                )
+            }
+        }
     }
 
     private fun extractTextOnly(script: String): String =

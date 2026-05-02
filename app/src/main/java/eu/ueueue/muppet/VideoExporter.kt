@@ -20,47 +20,48 @@ class VideoExporter(private val context: Context) {
         fps: Int = 30,
         outputName: String = "muppet_${System.currentTimeMillis()}.mp4"
     ): String = withContext(Dispatchers.IO) {
-        // FFmpeg écrit d'abord dans le cache (toujours accessible en écriture)
-        val tempFile = File(context.cacheDir, outputName)
-
-        AppLogger.log("FFmpeg", "framesDir=$framesDir audio=$audioPath srt=$srtPath")
-        AppLogger.log("FFmpeg", "temp=${tempFile.absolutePath}")
-
         val frameCount = File(framesDir).listFiles()?.size ?: 0
         AppLogger.log("FFmpeg", "frames trouvés : $frameCount")
         if (frameCount == 0) throw RuntimeException("Aucun frame JPEG dans $framesDir")
 
-        val cmd = buildString {
-            append("-framerate $fps -i '$framesDir/frame_%04d.jpg' ")
+        // Passe 1 : vidéo seule (h264_mediacodec ne mixe pas l'audio)
+        val tempVideo = File(context.cacheDir, "vid_${System.currentTimeMillis()}.mp4")
+        val cmd1 = "-framerate $fps -i '$framesDir/frame_%04d.jpg' " +
+                   "-vf 'scale=1080:1080' -c:v h264_mediacodec -b:v 6M " +
+                   "-y '${tempVideo.absolutePath}'"
+        AppLogger.log("FFmpeg", "passe 1 (vidéo): $cmd1")
+        runFFmpeg(cmd1)
+
+        // Passe 2 : mux vidéo + audio (+ sous-titres optionnels) avec copy vidéo
+        val tempFinal = File(context.cacheDir, outputName)
+        val cmd2 = buildString {
+            append("-i '${tempVideo.absolutePath}' ")
             if (audioPath != null) append("-i '$audioPath' ")
             if (srtPath != null) append("-i '$srtPath' ")
             append("-map 0:v ")
             if (audioPath != null) append("-map 1:a ")
-            if (srtPath != null) {
-                val srtIdx = if (audioPath != null) 2 else 1
-                append("-map $srtIdx:s ")
-            }
-            append("-vf 'scale=1080:1080' ")
-            append("-c:v h264_mediacodec -b:v 6M ")
+            if (srtPath != null) append("-map ${if (audioPath != null) 2 else 1}:s ")
+            append("-c:v copy ")
             if (audioPath != null) append("-c:a aac -ar 44100 -shortest ")
             if (srtPath != null) append("-c:s mov_text ")
-            append("-y '${tempFile.absolutePath}'")
+            append("-y '${tempFinal.absolutePath}'")
         }
-        AppLogger.log("FFmpeg", "cmd: $cmd")
+        AppLogger.log("FFmpeg", "passe 2 (mux): $cmd2")
+        runFFmpeg(cmd2)
+        tempVideo.delete()
 
-        val session = FFmpegKit.execute(cmd)
-        val logs = session.allLogsAsString ?: ""
-        AppLogger.log("FFmpeg", "rc=${session.returnCode} logs=${logs.takeLast(500)}")
-
-        if (!ReturnCode.isSuccess(session.returnCode))
-            throw RuntimeException("FFmpeg a échoué (rc=${session.returnCode})\n${logs.takeLast(300)}")
-
-        // Copie dans Téléchargements (visible dans l'app Fichiers)
-        val finalPath = copyToDownloads(tempFile, outputName)
-        tempFile.delete()
-
+        val finalPath = copyToDownloads(tempFinal, outputName)
+        tempFinal.delete()
         AppLogger.log("FFmpeg", "succès → $finalPath")
         finalPath
+    }
+
+    private fun runFFmpeg(cmd: String) {
+        val session = FFmpegKit.execute(cmd)
+        val logs = session.allLogsAsString ?: ""
+        AppLogger.log("FFmpeg", "rc=${session.returnCode} ${logs.takeLast(300)}")
+        if (!ReturnCode.isSuccess(session.returnCode))
+            throw RuntimeException("FFmpeg échoué\n${logs.takeLast(300)}")
     }
 
     private fun copyToDownloads(src: File, name: String): String {
