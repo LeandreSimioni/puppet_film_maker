@@ -27,52 +27,58 @@ class VideoExporter(private val context: Context) {
         AppLogger.log("FFmpeg", "frames: $frameCount, intro: $introCardPath, outro: $outroCardPath")
         if (frameCount == 0) throw RuntimeException("Aucun frame JPEG dans $framesDir")
 
-        // Passe 1 : vidéo principale
+        // Passe 1 : vidéo principale (frames → video only)
         val mainVid = File(context.cacheDir, "vid_main_${System.currentTimeMillis()}.mp4")
         runFFmpeg("-framerate $fps -i '$framesDir/frame_%04d.jpg' " +
                   "-vf 'scale=1080:1080' -c:v h264_mediacodec -b:v 6M " +
                   "-y '${mainVid.absolutePath}'")
 
-        // Cases intro/outro — re-encodées à 1080×1080 pour compatibilité concat
-        val introDuration = introCardPath?.let { getVideoDurationSeconds(it) } ?: 0.0
-        val outroDuration  = outroCardPath?.let { getVideoDurationSeconds(it) }  ?: 0.0
-        val introVid = introCardPath?.let { prepareCardVideo(it) }
-        val outroVid  = outroCardPath?.let { prepareCardVideo(it) }
-
-        // Concat vidéo : [intro?] + main + [outro?]
-        val videoParts = listOfNotNull(introVid, mainVid, outroVid)
-        val combinedVid = if (videoParts.size == 1) mainVid else concatVideos(videoParts)
-
-        // Ajustement audio : silence calé sur la durée réelle de chaque case
-        val finalAudio = if (audioPath != null && (introVid != null || outroVid != null)) {
-            val parts = mutableListOf<File>()
-            if (introVid != null) parts += createSilenceWav(introDuration)
-            parts += File(audioPath)
-            if (outroVid != null) parts += createSilenceWav(outroDuration)
-            val out = File(context.cacheDir, "audio_cards_${System.currentTimeMillis()}.m4a").absolutePath
-            concatenateAudio(parts, out)
-            out
-        } else audioPath
-
-        // Passe 2 : mux vidéo + audio
         val tempFinal = File(context.cacheDir, outputName)
-        val cmd2 = buildString {
-            append("-i '${combinedVid.absolutePath}' ")
-            if (finalAudio != null) append("-i '$finalAudio' ")
-            append("-map 0:v ")
-            if (finalAudio != null) append("-map 1:a ")
-            append("-c:v copy ")
-            if (finalAudio != null) append("-c:a aac -ar 44100 -shortest ")
-            append("-y '${tempFinal.absolutePath}'")
-        }
-        runFFmpeg(cmd2)
 
-        // Nettoyage
-        if (combinedVid != mainVid) combinedVid.delete()
-        introVid?.delete()
-        outroVid?.delete()
-        mainVid.delete()
-        if (finalAudio != null && finalAudio != audioPath) File(finalAudio).delete()
+        if (introCardPath == null && outroCardPath == null) {
+            // Pas de cases — pipeline original : mux video + audio
+            runFFmpeg(buildString {
+                append("-i '${mainVid.absolutePath}' ")
+                if (audioPath != null) append("-i '$audioPath' ")
+                append("-map 0:v ")
+                if (audioPath != null) append("-map 1:a ")
+                append("-c:v copy ")
+                if (audioPath != null) append("-c:a aac -ar 44100 -shortest ")
+                append("-y '${tempFinal.absolutePath}'")
+            })
+            mainVid.delete()
+        } else {
+            // Avec cases : on muxe d'abord le main, puis on concat tout
+            // Les cases gardent leur propre audio.
+
+            // Passe 2a : mux video principale + audio (ou piste silencieuse pour compatibilité concat)
+            val mainMuxed = File(context.cacheDir, "vid_muxed_${System.currentTimeMillis()}.mp4")
+            runFFmpeg(buildString {
+                append("-i '${mainVid.absolutePath}' ")
+                if (audioPath != null) {
+                    append("-i '$audioPath' -map 0:v -map 1:a ")
+                } else {
+                    append("-f lavfi -i anullsrc=r=44100:cl=stereo -map 0:v -map 1:a ")
+                }
+                append("-c:v copy -c:a aac -ar 44100 -ac 2 -shortest ")
+                append("-y '${mainMuxed.absolutePath}'")
+            })
+            mainVid.delete()
+
+            // Cases re-encodées à 1080×1080, audio préservé (ou muet si absente)
+            val introCard = introCardPath?.let { prepareCardVideo(it) }
+            val outroCard  = outroCardPath?.let { prepareCardVideo(it) }
+
+            // Concat [intro?] + main + [outro?] — tout en AAC 44100 + h264
+            val parts = listOfNotNull(introCard, mainMuxed, outroCard)
+            val concatResult = if (parts.size == 1) mainMuxed else concatVideos(parts)
+
+            concatResult.copyTo(tempFinal, overwrite = true)
+            if (concatResult != mainMuxed) concatResult.delete()
+            introCard?.delete()
+            outroCard?.delete()
+            mainMuxed.delete()
+        }
 
         val finalPath = copyToDownloads(tempFinal, outputName)
         tempFinal.delete()
@@ -80,25 +86,24 @@ class VideoExporter(private val context: Context) {
         finalPath
     }
 
+    // Re-encode la case à 1080×1080 en conservant l'audio (anullsrc si pas de piste audio)
     private fun prepareCardVideo(videoPath: String): File {
         val out = File(context.cacheDir, "card_${System.currentTimeMillis()}.mp4")
-        runFFmpeg("-i '$videoPath' -vf 'scale=1080:1080' -c:v h264_mediacodec -b:v 6M " +
-                  "-y '${out.absolutePath}'")
-        return out
-    }
-
-    private fun getVideoDurationSeconds(path: String): Double {
-        val mmr = MediaMetadataRetriever()
-        return try {
-            mmr.setDataSource(path)
-            val ms = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-            ms / 1000.0
-        } catch (e: Exception) {
-            AppLogger.err("FFmpeg", "Impossible de lire la durée de $path", e)
-            0.0
-        } finally {
-            mmr.release()
+        val hasAudio = MediaMetadataRetriever().let { mmr ->
+            try {
+                mmr.setDataSource(videoPath)
+                mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
+            } catch (e: Exception) { false } finally { mmr.release() }
         }
+        runFFmpeg(if (hasAudio) {
+            "-i '$videoPath' -vf 'scale=1080:1080' -c:v h264_mediacodec -b:v 6M " +
+            "-c:a aac -ar 44100 -ac 2 -y '${out.absolutePath}'"
+        } else {
+            "-i '$videoPath' -f lavfi -i anullsrc=r=44100:cl=stereo " +
+            "-map 0:v -map 1:a -vf 'scale=1080:1080' -c:v h264_mediacodec -b:v 6M " +
+            "-c:a aac -ar 44100 -ac 2 -shortest -y '${out.absolutePath}'"
+        })
+        return out
     }
 
     private fun concatVideos(parts: List<File>): File {
