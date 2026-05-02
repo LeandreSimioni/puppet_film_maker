@@ -3,17 +3,23 @@ package eu.ueueue.muppet
 import android.content.Context
 import android.os.Bundle
 import android.text.InputType
+import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
 import eu.ueueue.muppet.databinding.ActivityMainBinding
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
@@ -26,6 +32,22 @@ class MainActivity : AppCompatActivity() {
     private var currentAudioPath: String? = null
     private var currentSttResult: SttResult? = null
     private var currentTimeline: JsonArray? = null
+
+    private val gson = GsonBuilder().setPrettyPrinting().create()
+
+    private val pickBackground = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri ?: return@registerForActivityResult
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dest = File(filesDir, "background.jpg")
+            contentResolver.openInputStream(uri)!!.use { it.copyTo(dest.outputStream()) }
+            getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+                .edit().putString("background_path", dest.absolutePath).apply()
+            withContext(Dispatchers.Main) {
+                injectBackground(dest.absolutePath)
+                setStatus("Fond mis à jour.")
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +99,9 @@ class MainActivity : AppCompatActivity() {
         binding.webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 AppLogger.log("WebView", "page chargée : $url")
+                val bgPath = getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+                    .getString("background_path", null)
+                if (bgPath != null && File(bgPath).exists()) injectBackground(bgPath)
             }
         }
         binding.webView.loadUrl("file:///android_asset/puppet/index.html")
@@ -112,9 +137,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnRender.setOnClickListener {
-            val timeline = currentTimeline ?: return@setOnClickListener
             val stt = currentSttResult ?: return@setOnClickListener
             val audio = currentAudioPath ?: return@setOnClickListener
+            val timelineJson = binding.timelineInput.text.toString().trim()
+            val timeline = try {
+                com.google.gson.JsonParser.parseString(timelineJson).asJsonArray
+            } catch (e: Exception) {
+                showError("JSON timeline invalide", e); return@setOnClickListener
+            }
+            currentTimeline = timeline
             lifecycleScope.launch {
                 try {
                     launchRender(timeline, stt, audio)
@@ -134,7 +165,8 @@ class MainActivity : AppCompatActivity() {
                     setStatus("Correction de la timeline...")
                     val newTimeline = mistralClient.refineOrchestration(timeline, request, stt)
                     currentTimeline = newTimeline
-                    setStatus("Timeline corrigée — relance le rendu.")
+                    binding.timelineInput.setText(gson.toJson(newTimeline))
+                    setStatus("Timeline corrigée — vérifie le JSON, puis relance le rendu.")
                 } catch (e: Exception) {
                     showError("Erreur correction", e)
                 }
@@ -148,6 +180,8 @@ class MainActivity : AppCompatActivity() {
                 AppLogger.log("WebView", "startRender retour JS : $result")
             }
         }
+
+        binding.btnBackground.setOnClickListener { pickBackground.launch("image/*") }
 
         binding.btnLogs.setOnClickListener { showLogsDialog() }
 
@@ -242,7 +276,10 @@ class MainActivity : AppCompatActivity() {
         setStatus("Orchestration...")
         currentTimeline = mistralClient.orchestrate(currentScript, currentSttResult!!)
 
-        setStatus("Timeline prête — lance le rendu ou demande des corrections.")
+        setStatus("Timeline prête — modifie le JSON si besoin, puis lance le rendu.")
+        binding.labelTimeline.visibility = View.VISIBLE
+        binding.timelineInput.visibility = View.VISIBLE
+        binding.timelineInput.setText(gson.toJson(currentTimeline))
         binding.btnRender.isEnabled = true
         binding.btnRefine.isEnabled = true
     }
@@ -277,6 +314,10 @@ class MainActivity : AppCompatActivity() {
                 showError("Assemblage FFmpeg", e)
             }
         }
+    }
+
+    private fun injectBackground(path: String) {
+        binding.webView.evaluateJavascript("setBackgroundUrl('file://$path')", null)
     }
 
     private fun extractTextOnly(script: String): String =

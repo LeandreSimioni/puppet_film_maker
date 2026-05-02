@@ -75,11 +75,38 @@
             android:textColor="#4caf50"
             android:layout_marginBottom="16dp" />
 
-        <!-- ÉTAPE 2 : rendu -->
+        <!-- ÉTAPE 2 : timeline JSON -->
+        <TextView
+            android:id="@+id/labelTimeline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2. TIMELINE JSON (modifiable)"
+            android:textColor="#555"
+            android:fontFamily="monospace"
+            android:textSize="11sp"
+            android:layout_marginBottom="4dp"
+            android:visibility="gone" />
+
+        <EditText
+            android:id="@+id/timelineInput"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:background="#0d1a0d"
+            android:textColor="#a5d6a7"
+            android:padding="12dp"
+            android:gravity="top"
+            android:inputType="textMultiLine"
+            android:fontFamily="monospace"
+            android:textSize="11sp"
+            android:scrollbars="vertical"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
+
+        <!-- ÉTAPE 3 : rendu -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="2. RENDU"
+            android:text="3. RENDU"
             android:textColor="#555"
             android:fontFamily="monospace"
             android:textSize="11sp"
@@ -95,11 +122,11 @@
             android:enabled="false"
             android:layout_marginBottom="16dp" />
 
-        <!-- ÉTAPE 3 : correction -->
+        <!-- ÉTAPE 4 : correction -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="3. CORRECTIONS (audio réutilisé)"
+            android:text="4. CORRECTIONS (audio réutilisé)"
             android:textColor="#555"
             android:fontFamily="monospace"
             android:textSize="11sp"
@@ -138,6 +165,15 @@
             android:text="[DEV] Test export 5s sans audio"
             android:backgroundTint="#1a1a1a"
             android:textColor="#555"
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/btnBackground"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Changer le fond"
+            android:backgroundTint="#1a1a1a"
+            android:textColor="#444"
             android:layout_marginBottom="4dp" />
 
         <Button

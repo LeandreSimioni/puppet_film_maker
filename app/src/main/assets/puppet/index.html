@@ -152,9 +152,17 @@ function applyAction(ev){
   else if(ev.action==='moveX'){state.posX=ev.x??0;}
 }
 
+function setBackgroundUrl(url){
+  new THREE.TextureLoader().load(url,function(tex){
+    tex.colorSpace=THREE.SRGBColorSpace;
+    scene.background=tex;
+  });
+}
+
 window.startRender=startRender;
 window.startRenderWithTimeline=startRenderWithTimeline;
 window.setMouthOpen=(v)=>{state.mouthOpen=v;};
+window.setBackgroundUrl=setBackgroundUrl;
 </script>
 </body>
 </html>
