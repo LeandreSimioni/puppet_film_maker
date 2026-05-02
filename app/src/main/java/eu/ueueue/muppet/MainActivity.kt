@@ -183,7 +183,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnRender.setOnClickListener {
-            if (currentSttResult == null || currentAudioPath == null) return@setOnClickListener
+            if (currentSttResult == null || currentAudioPath == null) {
+                showError("Aucun audio disponible — lance d'abord le TTS (bouton \"Valider → TTS + STT\")")
+                return@setOnClickListener
+            }
             val timelineJson = binding.timelineInput.text.toString().trim()
             val timeline = try {
                 com.google.gson.JsonParser.parseString(timelineJson).asJsonArray
@@ -333,11 +336,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPostAudioUI() {
-        binding.labelTimeline.visibility = View.VISIBLE
-        binding.timelineInput.visibility = View.VISIBLE
-        binding.btnCopyForClaude.visibility = View.VISIBLE
         binding.btnCopyForClaude.isEnabled = true
-        binding.btnOrchestrate.visibility = View.VISIBLE
         binding.btnOrchestrate.isEnabled = true
     }
 

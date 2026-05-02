@@ -83,8 +83,7 @@
             android:backgroundTint="#1a1a2e"
             android:textColor="#90caf9"
             android:enabled="false"
-            android:layout_marginBottom="4dp"
-            android:visibility="gone" />
+            android:layout_marginBottom="4dp" />
 
         <Button
             android:id="@+id/btnOrchestrate"
@@ -94,8 +93,7 @@
             android:backgroundTint="#1a1a1a"
             android:textColor="#888"
             android:enabled="false"
-            android:layout_marginBottom="16dp"
-            android:visibility="gone" />
+            android:layout_marginBottom="16dp" />
 
         <!-- ÉTAPE 2 : timeline JSON -->
         <TextView
@@ -106,8 +104,7 @@
             android:textColor="#555"
             android:fontFamily="monospace"
             android:textSize="11sp"
-            android:layout_marginBottom="4dp"
-            android:visibility="gone" />
+            android:layout_marginBottom="4dp" />
 
         <EditText
             android:id="@+id/timelineInput"
@@ -123,8 +120,7 @@
             android:fontFamily="monospace"
             android:textSize="11sp"
             android:scrollbars="vertical"
-            android:layout_marginBottom="8dp"
-            android:visibility="gone" />
+            android:layout_marginBottom="8dp" />
 
         <!-- ÉTAPE 3 : rendu -->
         <TextView
