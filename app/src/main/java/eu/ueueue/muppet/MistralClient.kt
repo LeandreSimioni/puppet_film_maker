@@ -7,8 +7,10 @@ import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -155,22 +157,23 @@ Exemples de didascalies valides :
     // ÉTAPE 3 : STT — audio → timestamps mot par mot
     // ─────────────────────────────────────────
     suspend fun stt(audioPath: String): SttResult = withContext(Dispatchers.IO) {
-        val audioBytes = File(audioPath).readBytes()
-        val base64Audio = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
-        val body = JsonObject().apply {
-            addProperty("model", "voxtral-mini-transcribe")
-            addProperty("audio", base64Audio)
-            addProperty("timestamp_granularities", "word")
-            addProperty("language", "fr")
-        }
+        val audioFile = File(audioPath)
+        val multipart = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("file", audioFile.name, audioFile.asRequestBody("audio/mpeg".toMediaType()))
+            .addFormDataPart("model", "voxtral-mini-transcribe")
+            .addFormDataPart("language", "fr")
+            .addFormDataPart("timestamp_granularities[]", "word")
+            .build()
         val request = Request.Builder()
             .url("https://api.mistral.ai/v1/audio/transcriptions")
             .header("Authorization", "Bearer $apiKey")
-            .post(body.toString().toRequestBody("application/json".toMediaType()))
+            .post(multipart)
             .build()
         val response = http.newCall(request).execute()
-        if (!response.isSuccessful) throw RuntimeException("STT error: ${response.code}")
-        val json = gson.fromJson(response.body!!.string(), JsonObject::class.java)
+        val responseBody = response.body!!.string()
+        if (!response.isSuccessful) throw RuntimeException("STT error ${response.code}: $responseBody")
+        val json = gson.fromJson(responseBody, JsonObject::class.java)
         val words = json.getAsJsonArray("words").map {
             val w = it.asJsonObject
             WordTimestamp(w.get("word").asString, w.get("start").asDouble, w.get("end").asDouble)
