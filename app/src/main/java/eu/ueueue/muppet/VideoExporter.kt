@@ -41,7 +41,7 @@ class VideoExporter(private val context: Context) {
                 append("-map $srtIdx:s ")
             }
             append("-vf 'scale=1080:1080' ")
-            append("-c:v libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p ")
+            append("-c:v h264_mediacodec -b:v 6M ")
             if (audioPath != null) append("-c:a aac -ar 44100 -shortest ")
             if (srtPath != null) append("-c:s mov_text ")
             append("-y '${tempFile.absolutePath}'")
