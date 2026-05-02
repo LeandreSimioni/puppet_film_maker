@@ -174,17 +174,25 @@ Exemples de didascalies valides :
         if (!response.isSuccessful) throw RuntimeException("STT error ${response.code}: $responseBody")
         AppLogger.log("STT", "response: $responseBody")
         val json = gson.fromJson(responseBody, JsonObject::class.java)
-        val wordsArray = json.getAsJsonArray("words")
-            ?: json.getAsJsonArray("segments")
-                ?.flatMap { seg ->
-                    seg.asJsonObject.getAsJsonArray("words")?.toList() ?: emptyList()
-                }
-                ?.let { list -> com.google.gson.JsonArray().also { arr -> list.forEach(arr::add) } }
-            ?: throw RuntimeException("STT: champ 'words' introuvable. Réponse : $responseBody")
-        val words = wordsArray.map {
-            val w = it.asJsonObject
-            WordTimestamp(w.get("word").asString, w.get("start").asDouble, w.get("end").asDouble)
+
+        // Priorité : words au niveau racine (timestamp_granularities=word)
+        val topWords = json.getAsJsonArray("words")
+        if (topWords != null && topWords.size() > 0) {
+            val words = topWords.map {
+                val w = it.asJsonObject
+                WordTimestamp(w.get("word").asString, w.get("start").asDouble, w.get("end").asDouble)
+            }
+            return@withContext SttResult(words, words.last().end)
         }
+
+        // Fallback : segments (un segment = une unité de lip sync)
+        val segments = json.getAsJsonArray("segments")
+            ?: throw RuntimeException("STT: ni 'words' ni 'segments'. Réponse : $responseBody")
+        val words = segments.map {
+            val s = it.asJsonObject
+            WordTimestamp(s.get("text").asString, s.get("start").asDouble, s.get("end").asDouble)
+        }
+        AppLogger.log("STT", "fallback segments : ${words.size} segments, durée=${words.lastOrNull()?.end}s")
         SttResult(words, words.lastOrNull()?.end ?: 0.0)
     }
 
