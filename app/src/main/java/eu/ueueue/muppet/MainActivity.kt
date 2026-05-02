@@ -108,12 +108,24 @@ class MainActivity : AppCompatActivity() {
         binding.timelineInput.setOnTouchListener { v, _ -> v.parent.requestDisallowInterceptTouchEvent(true); false }
 
         lifecycleScope.launch {
-            setStatus("Vérification des mises à jour...")
-            UpdateChecker.checkAndPrompt(this@MainActivity) { setStatus(it) }
+            val autoUpdate = getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+                .getBoolean("auto_update_enabled", true)
+            if (autoUpdate) {
+                setStatus("Vérification des mises à jour...")
+                UpdateChecker.checkAndPrompt(this@MainActivity) { setStatus(it) }
+            }
 
             setStatus("Chargement de la configuration...")
             try {
                 GitHubConfig.load(assets)
+                // Si GitHub a fourni une nouvelle version du puppet, on la sauvegarde et recharge
+                GitHubConfig.puppetHtml?.let { html ->
+                    withContext(Dispatchers.IO) {
+                        File(filesDir, "puppet_index.html").writeText(html)
+                    }
+                    binding.webView.loadUrl("file://${File(filesDir, "puppet_index.html").absolutePath}")
+                    AppLogger.log("Puppet", "index.html mis à jour depuis GitHub")
+                }
                 setStatus("Prêt.")
             } catch (e: Exception) {
                 AppLogger.err("Config", "load failed", e)
@@ -148,7 +160,11 @@ class MainActivity : AppCompatActivity() {
                 if (bgPath != null && File(bgPath).exists()) injectBackground(bgPath)
             }
         }
-        binding.webView.loadUrl("file:///android_asset/puppet/index.html")
+        // Priorité : version live depuis GitHub (filesDir), sinon asset embarqué
+        val cached = File(filesDir, "puppet_index.html")
+        val puppetUrl = if (cached.exists()) "file://${cached.absolutePath}"
+                        else "file:///android_asset/puppet/index.html"
+        binding.webView.loadUrl(puppetUrl)
     }
 
     private fun setupButtons() {
@@ -260,6 +276,14 @@ class MainActivity : AppCompatActivity() {
         binding.btnImportJingle.setOnClickListener { pickJingle.launch("audio/*") }
         binding.btnImportIntroCard.setOnClickListener { pickIntroCard.launch("video/*") }
         binding.btnImportOutroCard.setOnClickListener { pickOutroCard.launch("video/*") }
+
+        binding.btnAutoUpdate.setOnClickListener {
+            val prefs = getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+            val newValue = !prefs.getBoolean("auto_update_enabled", true)
+            prefs.edit().putBoolean("auto_update_enabled", newValue).apply()
+            refreshAutoUpdateLabel()
+        }
+        refreshAutoUpdateLabel()
 
         binding.btnLogs.setOnClickListener { showLogsDialog() }
 
@@ -461,6 +485,12 @@ class MainActivity : AppCompatActivity() {
                 showError("Assemblage FFmpeg", e)
             }
         }
+    }
+
+    private fun refreshAutoUpdateLabel() {
+        val enabled = getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+            .getBoolean("auto_update_enabled", true)
+        binding.btnAutoUpdate.text = if (enabled) "Mises à jour : ✓ actives" else "Mises à jour : ✗ désactivées"
     }
 
     private fun refreshCardButtonLabels() {

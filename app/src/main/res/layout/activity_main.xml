@@ -233,6 +233,15 @@
             android:layout_marginBottom="4dp" />
 
         <Button
+            android:id="@+id/btnAutoUpdate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Mises à jour : ✓ actives"
+            android:backgroundTint="#1a1a1a"
+            android:textColor="#444"
+            android:layout_marginBottom="4dp" />
+
+        <Button
             android:id="@+id/btnLogs"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

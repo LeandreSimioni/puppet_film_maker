@@ -27,12 +27,9 @@ object GitHubConfig {
     var constraints: String = ""      // puppet_constraints.md
     var directorMemory: String = ""   // director_memory.md
     var orchestratorDoc: String = ""  // orchestrateur.md — actions disponibles
+    var puppetHtml: String? = null    // puppet/index.html — null = utiliser l'asset embarqué
     var isLoaded: Boolean = false
 
-    /**
-     * À appeler au démarrage de l'app.
-     * En cas d'échec réseau, utilise les valeurs embarquées dans les assets.
-     */
     suspend fun load(fallbackAssets: android.content.res.AssetManager) {
         withContext(Dispatchers.IO) {
             constraints = fetchFile("puppet_constraints.md")
@@ -43,6 +40,8 @@ object GitHubConfig {
 
             orchestratorDoc = fetchFile("orchestrateur.md")
                 ?: fallbackAssets.open("config/orchestrateur.md").reader().readText()
+
+            puppetHtml = fetchFile("puppet/index.html")
 
             isLoaded = true
         }
