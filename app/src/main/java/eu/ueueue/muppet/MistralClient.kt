@@ -104,12 +104,14 @@ Exemples de didascalies valides :
         voices
     }
 
-    private suspend fun resolveMarieVoiceId(): String {
+    private suspend fun resolveMarieVoiceId(emotion: String = "Excited"): String {
         cachedMarieVoiceId?.let { return it }
         val voices = listVoices()
-        val marie = voices.firstOrNull { it.name.equals("marie", ignoreCase = true) }
+        val marie = voices.firstOrNull { it.name.equals("marie - $emotion", ignoreCase = true) }
+            ?: voices.firstOrNull { it.name.startsWith("marie", ignoreCase = true) }
             ?: throw RuntimeException("Voix 'Marie' introuvable — vérifiez votre compte Mistral.")
         cachedMarieVoiceId = marie.id
+        AppLogger.log("Voices", "Marie sélectionnée : ${marie.name} (${marie.id})")
         return marie.id
     }
 
