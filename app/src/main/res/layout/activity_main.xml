@@ -43,16 +43,18 @@
         <EditText
             android:id="@+id/scriptInput"
             android:layout_width="match_parent"
-            android:layout_height="140dp"
+            android:layout_height="280dp"
             android:background="#1a0e00"
             android:textColor="#e8e0d0"
             android:hint="Décris ton sujet ou colle un script avec [didascalies]"
-            android:hintTextColor="#444"
+            android:textColorHint="#444"
             android:padding="12dp"
             android:gravity="top"
             android:inputType="textMultiLine"
             android:fontFamily="monospace"
             android:textSize="13sp"
+            android:scrollbars="vertical"
+            android:overScrollMode="always"
             android:layout_marginBottom="8dp" />
 
         <Button
@@ -68,16 +70,67 @@
             android:id="@+id/btnValidate"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Valider le script → TTS + STT + Orchestration"
+            android:text="Valider → TTS + STT"
             android:backgroundTint="#1a2e1a"
             android:textColor="#4caf50"
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="4dp" />
 
-        <!-- ÉTAPE 2 : rendu -->
+        <Button
+            android:id="@+id/btnCopyForClaude"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Copier pour Claude (script + timestamps)"
+            android:backgroundTint="#1a1a2e"
+            android:textColor="#90caf9"
+            android:enabled="false"
+            android:layout_marginBottom="4dp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnOrchestrate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Orchestrer avec Mistral (optionnel)"
+            android:backgroundTint="#1a1a1a"
+            android:textColor="#888"
+            android:enabled="false"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone" />
+
+        <!-- ÉTAPE 2 : timeline JSON -->
+        <TextView
+            android:id="@+id/labelTimeline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2. TIMELINE JSON — colle ici le JSON de Claude"
+            android:textColor="#555"
+            android:fontFamily="monospace"
+            android:textSize="11sp"
+            android:layout_marginBottom="4dp"
+            android:visibility="gone" />
+
+        <EditText
+            android:id="@+id/timelineInput"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:background="#0d1a0d"
+            android:textColor="#a5d6a7"
+            android:hint="Colle ici la timeline JSON générée par Claude..."
+            android:textColorHint="#2a4a2a"
+            android:padding="12dp"
+            android:gravity="top"
+            android:inputType="textMultiLine"
+            android:fontFamily="monospace"
+            android:textSize="11sp"
+            android:scrollbars="vertical"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
+
+        <!-- ÉTAPE 3 : rendu -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="2. RENDU"
+            android:text="3. RENDU"
             android:textColor="#555"
             android:fontFamily="monospace"
             android:textSize="11sp"
@@ -93,11 +146,11 @@
             android:enabled="false"
             android:layout_marginBottom="16dp" />
 
-        <!-- ÉTAPE 3 : correction -->
+        <!-- ÉTAPE 4 : correction -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="3. CORRECTIONS (audio réutilisé)"
+            android:text="4. CORRECTIONS (audio réutilisé)"
             android:textColor="#555"
             android:fontFamily="monospace"
             android:textSize="11sp"
@@ -110,7 +163,7 @@
             android:background="#1a0e00"
             android:textColor="#e8e0d0"
             android:hint="Ex: Elle bouge trop peu. Ajoute plus de regards vers le bas."
-            android:hintTextColor="#444"
+            android:textColorHint="#444"
             android:padding="12dp"
             android:gravity="top"
             android:inputType="textMultiLine"
@@ -139,12 +192,39 @@
             android:layout_marginBottom="4dp" />
 
         <Button
+            android:id="@+id/btnBackground"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Changer le fond"
+            android:backgroundTint="#1a1a1a"
+            android:textColor="#444"
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/btnImportJingle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Importer un jingle (MP3)"
+            android:backgroundTint="#1a1a1a"
+            android:textColor="#444"
+            android:layout_marginBottom="4dp" />
+
+        <Button
             android:id="@+id/btnApiKey"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Clé API Mistral"
             android:backgroundTint="#1a1a1a"
-            android:textColor="#444" />
+            android:textColor="#444"
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/btnLogs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Voir logs"
+            android:backgroundTint="#1a1a1a"
+            android:textColor="#666" />
 
     </LinearLayout>
 </ScrollView>

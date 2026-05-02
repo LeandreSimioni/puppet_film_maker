@@ -1,30 +1,26 @@
 package eu.ueueue.muppet
 
 import android.content.Context
-import android.media.MediaScannerConnection
 import android.os.Bundle
 import android.text.InputType
+import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
+import android.widget.ScrollView
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
 import eu.ueueue.muppet.databinding.ActivityMainBinding
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
-/**
- * Flow complet :
- *
- * 1. Saisie texte brut
- * 2. Rédacteur LLM → script avec didascalies [éditable]
- * 3. Valider → TTS → audio WAV
- * 4. STT → timestamps mot par mot
- * 5. Orchestrateur LLM → timeline JSON [éditable / raffinable]
- * 6. Rendu Three.js → frames JPEG → FFmpegKit → MP4
- * 7. Chat de correction → nouvelle timeline → nouveau rendu (audio réutilisé)
- */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -32,14 +28,46 @@ class MainActivity : AppCompatActivity() {
     private lateinit var videoExporter: VideoExporter
     private lateinit var mistralClient: MistralClient
 
-    // État courant de la session
     private var currentScript: String = ""
     private var currentAudioPath: String? = null
     private var currentSttResult: SttResult? = null
     private var currentTimeline: JsonArray? = null
 
+    private val gson = GsonBuilder().setPrettyPrinting().create()
+    private val plainGson = com.google.gson.Gson()
+
+    private val pickBackground = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri ?: return@registerForActivityResult
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dest = File(filesDir, "background.jpg")
+            contentResolver.openInputStream(uri)!!.use { it.copyTo(dest.outputStream()) }
+            getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+                .edit().putString("background_path", dest.absolutePath).apply()
+            withContext(Dispatchers.Main) {
+                injectBackground(dest.absolutePath)
+                setStatus("Fond mis à jour.")
+            }
+        }
+    }
+
+    private val pickJingle = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri ?: return@registerForActivityResult
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dest = File(filesDir, "jingle.mp3")
+            contentResolver.openInputStream(uri)!!.use { it.copyTo(dest.outputStream()) }
+            getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+                .edit().putString("jingle_path", dest.absolutePath).apply()
+            withContext(Dispatchers.Main) {
+                setStatus("Jingle importé → ${dest.name} (${dest.length() / 1024}ko)")
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppLogger.init(this)
+        installCrashHandler()
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -49,11 +77,31 @@ class MainActivity : AppCompatActivity() {
         setupWebView()
         setupButtons()
         checkApiKey()
+        binding.scriptInput.setOnTouchListener { v, _ -> v.parent.requestDisallowInterceptTouchEvent(true); false }
+        binding.timelineInput.setOnTouchListener { v, _ -> v.parent.requestDisallowInterceptTouchEvent(true); false }
 
         lifecycleScope.launch {
-            binding.statusText.text = "Chargement de la configuration..."
-            GitHubConfig.load(assets)
-            binding.statusText.text = "Prêt."
+            setStatus("Vérification des mises à jour...")
+            UpdateChecker.checkAndPrompt(this@MainActivity) { setStatus(it) }
+
+            setStatus("Chargement de la configuration...")
+            try {
+                GitHubConfig.load(assets)
+                setStatus("Prêt.")
+            } catch (e: Exception) {
+                AppLogger.err("Config", "load failed", e)
+                setStatus("Config GitHub indisponible — fallback local.")
+            }
+
+            restoreLastSession()
+        }
+    }
+
+    private fun installCrashHandler() {
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, ex ->
+            AppLogger.err("CRASH", "thread=${thread.name}", ex)
+            defaultHandler?.uncaughtException(thread, ex)
         }
     }
 
@@ -65,70 +113,166 @@ class MainActivity : AppCompatActivity() {
         }
         puppetBridge = PuppetBridge(this, videoExporter)
         binding.webView.addJavascriptInterface(puppetBridge, "Android")
-        binding.webView.webViewClient = WebViewClient()
+        binding.webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                AppLogger.log("WebView", "page chargée : $url")
+                val bgPath = getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+                    .getString("background_path", null)
+                if (bgPath != null && File(bgPath).exists()) injectBackground(bgPath)
+            }
+        }
         binding.webView.loadUrl("file:///android_asset/puppet/index.html")
     }
 
     private fun setupButtons() {
 
-        // ÉTAPE 1 : générer le script avec didascalies
         binding.btnRedact.setOnClickListener {
             val subject = binding.scriptInput.text.toString()
             if (subject.isBlank()) return@setOnClickListener
             lifecycleScope.launch {
-                binding.statusText.text = "Rédaction du script..."
-                val script = mistralClient.redact(subject)
-                binding.scriptInput.setText(script)
-                binding.statusText.text = "Script généré — modifie-le si besoin, puis valide."
+                try {
+                    setStatus("Rédaction du script...")
+                    val script = mistralClient.redact(subject)
+                    binding.scriptInput.setText(script)
+                    setStatus("Script généré — modifie-le si besoin, puis valide.")
+                } catch (e: Exception) {
+                    showError("Erreur rédaction", e)
+                }
             }
         }
 
-        // ÉTAPE 2 : valider le script → TTS → STT → Orchestrateur
         binding.btnValidate.setOnClickListener {
             currentScript = binding.scriptInput.text.toString()
             if (currentScript.isBlank()) return@setOnClickListener
             lifecycleScope.launch {
-                generateAudioAndOrchestrate()
+                try {
+                    runTtsAndStt()
+                } catch (e: Exception) {
+                    showError("Erreur pipeline audio", e)
+                }
             }
         }
 
-        // ÉTAPE 3 : lancer le rendu avec la timeline courante
-        binding.btnRender.setOnClickListener {
-            val timeline = currentTimeline ?: return@setOnClickListener
+        binding.btnCopyForClaude.setOnClickListener {
             val stt = currentSttResult ?: return@setOnClickListener
-            val audio = currentAudioPath ?: return@setOnClickListener
+            val content = buildString {
+                appendLine("SCRIPT:")
+                appendLine(currentScript)
+                appendLine()
+                appendLine("TIMESTAMPS MOT PAR MOT:")
+                stt.words.forEach { appendLine("  ${it.start}s–${it.end}s : ${it.text}") }
+                appendLine()
+                appendLine("DURÉE TOTALE : ${stt.durationSeconds}s")
+            }
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("claude_context", content))
+            setStatus("Copié — colle dans Claude.ai et récupère le JSON de timeline.")
+        }
+
+        binding.btnOrchestrate.setOnClickListener {
+            val stt = currentSttResult ?: return@setOnClickListener
             lifecycleScope.launch {
-                launchRender(timeline, stt, audio)
+                try {
+                    setStatus("Orchestration Mistral...")
+                    val timeline = mistralClient.orchestrate(currentScript, stt)
+                    applyAndShowTimeline(timeline)
+                } catch (e: Exception) {
+                    showError("Erreur orchestration", e)
+                }
             }
         }
 
-        // ÉTAPE 4 : corriger la timeline via chat
+        binding.btnRender.setOnClickListener {
+            if (currentSttResult == null || currentAudioPath == null) return@setOnClickListener
+            val timelineJson = binding.timelineInput.text.toString().trim()
+            val timeline = try {
+                com.google.gson.JsonParser.parseString(timelineJson).asJsonArray
+            } catch (e: Exception) {
+                showError("JSON timeline invalide", e); return@setOnClickListener
+            }
+            lifecycleScope.launch {
+                try {
+                    applyAndShowTimeline(timeline)
+                    launchRender(currentTimeline!!, currentSttResult!!, currentAudioPath!!)
+                } catch (e: Exception) {
+                    showError("Erreur rendu", e)
+                }
+            }
+        }
+
         binding.btnRefine.setOnClickListener {
             val request = binding.refineInput.text.toString()
             val timeline = currentTimeline ?: return@setOnClickListener
             val stt = currentSttResult ?: return@setOnClickListener
             if (request.isBlank()) return@setOnClickListener
             lifecycleScope.launch {
-                binding.statusText.text = "Correction de la timeline..."
-                val newTimeline = mistralClient.refineOrchestration(timeline, request, stt)
-                currentTimeline = newTimeline
-                binding.statusText.text = "Timeline corrigée — relance le rendu."
+                try {
+                    setStatus("Correction de la timeline...")
+                    val newTimeline = mistralClient.refineOrchestration(timeline, request, stt)
+                    currentTimeline = newTimeline
+                    binding.timelineInput.setText(gson.toJson(newTimeline))
+                    setStatus("Timeline corrigée — vérifie le JSON, puis relance le rendu.")
+                } catch (e: Exception) {
+                    showError("Erreur correction", e)
+                }
             }
         }
 
-        // Test Phase 1 — export sans audio
         binding.btnTestExport.setOnClickListener {
-            binding.statusText.text = "Test export 5s..."
-            binding.webView.evaluateJavascript("startRender(150, 30)", null)
+            AppLogger.log("UI", "btnTestExport cliqué")
+            setStatus("Test export 5s — démarrage rendu JS...")
+            binding.webView.evaluateJavascript("startRender(150, 30)") { result ->
+                AppLogger.log("WebView", "startRender retour JS : $result")
+            }
         }
 
+        binding.btnBackground.setOnClickListener { pickBackground.launch("image/*") }
+        binding.btnImportJingle.setOnClickListener { pickJingle.launch("audio/*") }
+
+        binding.btnLogs.setOnClickListener { showLogsDialog() }
+
         binding.btnApiKey.setOnClickListener { promptApiKey() }
+    }
+
+    fun setStatus(msg: String) {
+        AppLogger.log("Status", msg)
+        binding.statusText.text = msg
+    }
+
+    fun showError(context: String, e: Throwable? = null) {
+        val msg = if (e != null) "$context : ${e.message}" else context
+        AppLogger.err("UI", msg, e)
+        binding.statusText.text = "⚠ $msg — voir Logs"
+    }
+
+    private fun showLogsDialog() {
+        val tv = TextView(this).apply {
+            text = AppLogger.read()
+            setPadding(32, 24, 32, 24)
+            setTextColor(0xFFE8E0D0.toInt())
+            setBackgroundColor(0xFF0A0400.toInt())
+            textSize = 10f
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+        val scroll = ScrollView(this).apply {
+            addView(tv)
+            post { fullScroll(ScrollView.FOCUS_DOWN) }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Logs")
+            .setView(scroll)
+            .setPositiveButton("Fermer", null)
+            .setNeutralButton("Copier") { _, _ ->
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("logs", AppLogger.read()))
+                setStatus("Logs copiés dans le presse-papier.")
+            }
+            .show()
     }
 
     private fun checkApiKey() {
         val prefs = getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
         if (prefs.getString("mistral_api_key", null).isNullOrBlank()) {
-            // Tenter migration config.json
             try {
                 assets.open("config/config.json").use {
                     val key = com.google.gson.Gson()
@@ -159,7 +303,7 @@ class MainActivity : AppCompatActivity() {
                 if (key.isNotBlank()) {
                     getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
                         .edit().putString("mistral_api_key", key).apply()
-                    binding.statusText.text = "Clé API sauvegardée."
+                    setStatus("Clé API sauvegardée.")
                     onSaved?.invoke()
                 }
             }
@@ -167,61 +311,139 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private suspend fun generateAudioAndOrchestrate() {
-        // TTS : texte seul (sans les didascalies)
-        binding.statusText.text = "Synthèse vocale..."
-        val textOnly = extractTextOnly(currentScript)
-        currentAudioPath = mistralClient.tts(textOnly)
+    private suspend fun runTtsAndStt() {
+        setStatus("Synthèse vocale...")
+        val ttsPath = mistralClient.tts(extractTextOnly(currentScript))
 
-        // STT : timestamps précis
-        binding.statusText.text = "Analyse des timestamps..."
+        // Copie vers emplacement permanent dès la réception de l'audio
+        withContext(Dispatchers.IO) {
+            File(ttsPath).copyTo(File(filesDir, "last_audio.mp3"), overwrite = true)
+        }
+        currentAudioPath = File(filesDir, "last_audio.mp3").absolutePath
+
+        setStatus("Analyse des timestamps...")
         currentSttResult = mistralClient.stt(currentAudioPath!!)
 
-        // Orchestrateur : script complet + timestamps → timeline
-        binding.statusText.text = "Orchestration..."
-        currentTimeline = mistralClient.orchestrate(currentScript, currentSttResult!!)
+        withContext(Dispatchers.IO) {
+            File(filesDir, "last_stt.json").writeText(plainGson.toJson(currentSttResult))
+        }
 
-        binding.statusText.text = "Timeline prête — lance le rendu ou demande des corrections."
+        setStatus("Prêt — copie pour Claude ou orchestre avec Mistral.")
+        showPostAudioUI()
+    }
+
+    private fun showPostAudioUI() {
+        binding.labelTimeline.visibility = View.VISIBLE
+        binding.timelineInput.visibility = View.VISIBLE
+        binding.btnCopyForClaude.visibility = View.VISIBLE
+        binding.btnCopyForClaude.isEnabled = true
+        binding.btnOrchestrate.visibility = View.VISIBLE
+        binding.btnOrchestrate.isEnabled = true
+    }
+
+    private suspend fun restoreLastSession() {
+        val audioFile = File(filesDir, "last_audio.mp3")
+        val sttFile = File(filesDir, "last_stt.json")
+        if (!audioFile.exists() || !sttFile.exists()) return
+        try {
+            val stt = withContext(Dispatchers.IO) {
+                plainGson.fromJson(sttFile.readText(), SttResult::class.java)
+            }
+            currentAudioPath = audioFile.absolutePath
+            currentSttResult = stt
+            showPostAudioUI()
+            binding.btnRender.isEnabled = true
+            val dur = stt.durationSeconds.toInt()
+            setStatus("Son précédent restauré (${dur}s). Colle un JSON ou orchestre.")
+            AppLogger.log("Restore", "Session restaurée — ${audioFile.length() / 1024}ko, ${stt.words.size} mots")
+        } catch (e: Exception) {
+            AppLogger.err("Restore", "Erreur restauration session", e)
+        }
+    }
+
+    private suspend fun applyAndShowTimeline(timeline: com.google.gson.JsonArray) {
+        val insertions = timeline.mapNotNull { el ->
+            val obj = el.asJsonObject
+            if (obj.get("action")?.asString == "insertSilence")
+                VideoExporter.SilenceInsertion(obj.get("t").asDouble, obj.get("duration").asDouble)
+            else null
+        }.sortedBy { it.atSeconds }
+
+        var finalTimeline = timeline
+        if (insertions.isNotEmpty()) {
+            setStatus("Insertion des silences (${insertions.size})...")
+            currentAudioPath = withContext(Dispatchers.IO) {
+                val newPath = videoExporter.applyAudioInsertions(currentAudioPath!!, insertions)
+                File(newPath).copyTo(File(filesDir, "last_audio.mp3"), overwrite = true)
+                File(filesDir, "last_audio.mp3").absolutePath
+            }
+            currentSttResult = shiftTimestamps(currentSttResult!!, insertions)
+            withContext(Dispatchers.IO) {
+                File(filesDir, "last_stt.json").writeText(plainGson.toJson(currentSttResult))
+            }
+            val filtered = com.google.gson.JsonArray()
+            timeline.forEach { if (it.asJsonObject.get("action")?.asString != "insertSilence") filtered.add(it) }
+            finalTimeline = filtered
+        }
+
+        currentTimeline = finalTimeline
+        binding.timelineInput.setText(gson.toJson(finalTimeline))
         binding.btnRender.isEnabled = true
         binding.btnRefine.isEnabled = true
+        setStatus("Timeline prête — lance le rendu.")
+    }
+
+    private fun shiftTimestamps(stt: SttResult, insertions: List<VideoExporter.SilenceInsertion>): SttResult {
+        fun offset(t: Double) = insertions.filter { it.atSeconds <= t }.sumOf { it.duration }
+        val shifted = stt.words.map { WordTimestamp(it.text, it.start + offset(it.start), it.end + offset(it.end)) }
+        return SttResult(shifted, shifted.lastOrNull()?.end ?: stt.durationSeconds)
     }
 
     private suspend fun launchRender(timeline: JsonArray, stt: SttResult, audioPath: String) {
-        binding.statusText.text = "Rendu en cours..."
+        setStatus("Rendu en cours...")
         val srtPath = videoExporter.generateSrt(stt)
         val timelineJson = timeline.toString()
         val wordsJson = stt.words.joinToString(",", "[", "]") {
-            """{"start":${it.start},"end":${it.end}}"""
+            """{"text":${gson.toJson(it.text)},"start":${it.start},"end":${it.end}}"""
         }
         binding.webView.evaluateJavascript(
             "startRenderWithTimeline($timelineJson, ${stt.durationSeconds}, $wordsJson)", null
         )
-        // La suite est gérée par onRenderComplete via PuppetBridge
         puppetBridge.pendingAudioPath = audioPath
         puppetBridge.pendingSrtPath = srtPath
     }
 
     fun onRenderComplete(framesDir: String, frameCount: Int) {
-        binding.statusText.text = "Assemblage vidéo..."
+        setStatus("Assemblage vidéo ($frameCount frames)...")
         lifecycleScope.launch {
-            val outputPath = videoExporter.assembleVideo(
-                framesDir = framesDir,
-                audioPath = puppetBridge.pendingAudioPath,
-                srtPath = puppetBridge.pendingSrtPath,
-                fps = 30,
-                outputName = "muppet_${System.currentTimeMillis()}.mp4"
-            )
-            MediaScannerConnection.scanFile(
-                this@MainActivity, arrayOf(outputPath), arrayOf("video/mp4"), null
-            )
-            binding.statusText.text = "✓ $outputPath"
+            try {
+                val outputPath = videoExporter.assembleVideo(
+                    framesDir = framesDir,
+                    audioPath = puppetBridge.pendingAudioPath,
+                    srtPath = puppetBridge.pendingSrtPath,
+                    fps = 30,
+                    outputName = "muppet_${System.currentTimeMillis()}.mp4"
+                )
+                setStatus("✓ Vidéo dans Téléchargements : $outputPath")
+            } catch (e: Exception) {
+                showError("Assemblage FFmpeg", e)
+            }
         }
     }
 
-    /**
-     * Extrait uniquement le texte parlé — retire les didascalies entre crochets.
-     */
-    private fun extractTextOnly(script: String): String {
-        return script.replace(Regex("\\[.*?\\]"), "").trim()
+    private fun injectBackground(path: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val bytes = File(path).readBytes()
+            val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            val ext = if (path.endsWith(".png")) "png" else "jpeg"
+            withContext(Dispatchers.Main) {
+                binding.webView.evaluateJavascript(
+                    "setBackgroundUrl('data:image/$ext;base64,$b64')", null
+                )
+            }
+        }
     }
+
+    private fun extractTextOnly(script: String): String =
+        script.replace(Regex("\\[.*?\\]"), "").trim()
 }

@@ -1,40 +1,19 @@
 # Déboguer l'app
 
-## ⚠️ Contexte pour la prochaine session Claude
+## ✅ Bug résolu (2026-05-01)
 
-**Problème en cours (2026-05-01) :** le build CI GitHub Actions échoue à l'étape "Build Debug APK".
+**Problème :** `com.arthenica:ffmpeg-kit-full:6.0-2` introuvable.
 
-**Erreur exacte :**
+**Cause racine :** FFmpegKit a été retiré officiellement en janvier 2025. Les binaires Maven Central ont été supprimés le 1er avril 2025. Le search.maven.org montre encore les entrées mais les fichiers AAR n'existent plus (404).
+
+**Solution appliquée :** remplacement par le fork communautaire drop-in :
 ```
-Execution failed for task ':app:dataBindingMergeDependencyArtifactsDebug'.
-> Could not resolve all files for configuration ':app:debugCompileClasspath'.
-   > Could not find com.arthenica:ffmpeg-kit-full:6.0-2.
-     Required by: project :app
+com.moizhassan.ffmpeg:ffmpeg-kit-16kb:6.1.1
 ```
-
-**Ce qui a déjà été essayé (ne pas répéter) :**
-- Ajouter `android.useAndroidX=true` dans `gradle.properties` ✅ (autre erreur corrigée)
-- Ajouter Sonatype releases comme repo ❌ (même erreur)
-- Changer `repositoriesMode` en `PREFER_SETTINGS` puis le supprimer ❌ (même erreur)
-- `mavenCentral()` + `google()` dans `settings.gradle` ❌ (même erreur)
-
-**Ce que tu dois faire en premier :**
-```bash
-curl -I "https://repo1.maven.org/maven2/com/arthenica/ffmpeg-kit-full/6.0-2/ffmpeg-kit-full-6.0-2.aar"
-```
-→ Si 200 : l'artifact existe, le problème est ailleurs (config Gradle, réseau CI)
-→ Si 404 : l'artifact n'existe pas sous ce nom, il faut trouver le bon nom
-
-**Piste la plus probable :** la version `6.0-2` n'existe pas sur Maven Central avec ce nom exact. Essaie de lister les versions disponibles :
-```bash
-curl -s "https://repo1.maven.org/maven2/com/arthenica/ffmpeg-kit-full/maven-metadata.xml"
-```
-Puis mettre à jour `app/build.gradle` avec la bonne version.
-
-**Fichiers concernés :**
-- `app/build.gradle` → ligne `implementation 'com.arthenica:ffmpeg-kit-full:6.0-2'`
-- `settings.gradle` → configuration des repositories Maven
-- `.github/workflows/build.yml` → pipeline CI
+- Disponible sur Maven Central ✅
+- Classes identiques : `com.arthenica.ffmpegkit.*` — aucun changement de code Kotlin ✅
+- Dépendance transitive `com.arthenica:smart-exception-java:0.2.1` aussi sur Maven Central ✅
+- AAR ~83 Mo, variant "full" avec tous les codecs ✅
 
 ---
 
