@@ -30,15 +30,20 @@ class VideoExporter(private val context: Context) {
         AppLogger.log("FFmpeg", "frames trouvés : $frameCount")
         if (frameCount == 0) throw RuntimeException("Aucun frame JPEG dans $framesDir")
 
-        val vf = buildString {
-            if (srtPath != null) append("subtitles='$srtPath',")
-            append("scale=1080:1080")
-        }
         val cmd = buildString {
             append("-framerate $fps -i '$framesDir/frame_%04d.jpg' ")
             if (audioPath != null) append("-i '$audioPath' ")
-            append("-vf '$vf' -c:v h264_mediacodec -b:v 6M ")
-            if (audioPath != null) append("-c:a aac -shortest ")
+            if (srtPath != null) append("-i '$srtPath' ")
+            append("-map 0:v ")
+            if (audioPath != null) append("-map 1:a ")
+            if (srtPath != null) {
+                val srtIdx = if (audioPath != null) 2 else 1
+                append("-map $srtIdx:s ")
+            }
+            append("-vf 'scale=1080:1080' ")
+            append("-c:v libx264 -crf 23 -preset ultrafast -pix_fmt yuv420p ")
+            if (audioPath != null) append("-c:a aac -ar 44100 -shortest ")
+            if (srtPath != null) append("-c:s mov_text ")
             append("-y '${tempFile.absolutePath}'")
         }
         AppLogger.log("FFmpeg", "cmd: $cmd")
