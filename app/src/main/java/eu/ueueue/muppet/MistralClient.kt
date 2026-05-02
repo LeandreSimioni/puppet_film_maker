@@ -16,6 +16,7 @@ import android.util.Base64
 
 data class WordTimestamp(val text: String, val start: Double, val end: Double)
 data class SttResult(val words: List<WordTimestamp>, val durationSeconds: Double)
+data class VoiceItem(val id: String, val name: String)
 
 class MistralClient(private val context: Context) {
 
@@ -25,6 +26,8 @@ class MistralClient(private val context: Context) {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)
         .build()
+
+    private var cachedMarieVoiceId: String? = null
 
     private fun loadApiKey(): String {
         val prefs = context.getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
@@ -73,15 +76,54 @@ Exemples de didascalies valides :
     }
 
     // ─────────────────────────────────────────
+    // VOIX — liste toutes les voix disponibles
+    // ─────────────────────────────────────────
+    suspend fun listVoices(): List<VoiceItem> = withContext(Dispatchers.IO) {
+        val voices = mutableListOf<VoiceItem>()
+        var offset = 0
+        val limit = 20
+        while (true) {
+            val request = Request.Builder()
+                .url("https://api.mistral.ai/v1/audio/voices?limit=$limit&offset=$offset")
+                .header("Authorization", "Bearer $apiKey")
+                .get()
+                .build()
+            val response = http.newCall(request).execute()
+            if (!response.isSuccessful) throw RuntimeException("Voices error ${response.code}: ${response.body?.string()}")
+            val json = gson.fromJson(response.body!!.string(), JsonObject::class.java)
+            val items = json.getAsJsonArray("items")
+            items.forEach { el ->
+                val v = el.asJsonObject
+                voices += VoiceItem(v.get("id").asString, v.get("name").asString)
+            }
+            val total = json.get("total").asInt
+            offset += items.size()
+            if (offset >= total) break
+        }
+        AppLogger.log("Voices", "disponibles : ${voices.map { "${it.name}=${it.id}" }}")
+        voices
+    }
+
+    private suspend fun resolveMarieVoiceId(): String {
+        cachedMarieVoiceId?.let { return it }
+        val voices = listVoices()
+        val marie = voices.firstOrNull { it.name.equals("marie", ignoreCase = true) }
+            ?: throw RuntimeException("Voix 'Marie' introuvable — vérifiez votre compte Mistral.")
+        cachedMarieVoiceId = marie.id
+        return marie.id
+    }
+
+    // ─────────────────────────────────────────
     // ÉTAPE 2 : TTS — script texte seul → audio WAV
     // L'émotion vocale peut varier par segment selon les didascalies
     // ─────────────────────────────────────────
     suspend fun tts(text: String): String =
         withContext(Dispatchers.IO) {
+            val marieId = resolveMarieVoiceId()
             val body = JsonObject().apply {
                 addProperty("model", "voxtral-mini-tts-2603")
                 addProperty("input", text)
-                addProperty("voice_id", "marie")
+                addProperty("voice_id", marieId)
                 addProperty("response_format", "mp3")
             }
             AppLogger.log("TTS", "request body: $body")
