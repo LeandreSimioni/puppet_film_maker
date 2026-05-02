@@ -34,6 +34,7 @@ class MainActivity : AppCompatActivity() {
     private var currentTimeline: JsonArray? = null
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
+    private val plainGson = com.google.gson.Gson()
 
     private val pickBackground = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri ?: return@registerForActivityResult
@@ -91,6 +92,8 @@ class MainActivity : AppCompatActivity() {
                 AppLogger.err("Config", "load failed", e)
                 setStatus("Config GitHub indisponible — fallback local.")
             }
+
+            restoreLastSession()
         }
     }
 
@@ -310,18 +313,52 @@ class MainActivity : AppCompatActivity() {
 
     private suspend fun runTtsAndStt() {
         setStatus("Synthèse vocale...")
-        currentAudioPath = mistralClient.tts(extractTextOnly(currentScript))
+        val ttsPath = mistralClient.tts(extractTextOnly(currentScript))
+
+        // Copie vers emplacement permanent dès la réception de l'audio
+        withContext(Dispatchers.IO) {
+            File(ttsPath).copyTo(File(filesDir, "last_audio.mp3"), overwrite = true)
+        }
+        currentAudioPath = File(filesDir, "last_audio.mp3").absolutePath
 
         setStatus("Analyse des timestamps...")
         currentSttResult = mistralClient.stt(currentAudioPath!!)
 
+        withContext(Dispatchers.IO) {
+            File(filesDir, "last_stt.json").writeText(plainGson.toJson(currentSttResult))
+        }
+
         setStatus("Prêt — copie pour Claude ou orchestre avec Mistral.")
+        showPostAudioUI()
+    }
+
+    private fun showPostAudioUI() {
         binding.labelTimeline.visibility = View.VISIBLE
         binding.timelineInput.visibility = View.VISIBLE
         binding.btnCopyForClaude.visibility = View.VISIBLE
         binding.btnCopyForClaude.isEnabled = true
         binding.btnOrchestrate.visibility = View.VISIBLE
         binding.btnOrchestrate.isEnabled = true
+    }
+
+    private suspend fun restoreLastSession() {
+        val audioFile = File(filesDir, "last_audio.mp3")
+        val sttFile = File(filesDir, "last_stt.json")
+        if (!audioFile.exists() || !sttFile.exists()) return
+        try {
+            val stt = withContext(Dispatchers.IO) {
+                plainGson.fromJson(sttFile.readText(), SttResult::class.java)
+            }
+            currentAudioPath = audioFile.absolutePath
+            currentSttResult = stt
+            showPostAudioUI()
+            binding.btnRender.isEnabled = true
+            val dur = stt.durationSeconds.toInt()
+            setStatus("Son précédent restauré (${dur}s). Colle un JSON ou orchestre.")
+            AppLogger.log("Restore", "Session restaurée — ${audioFile.length() / 1024}ko, ${stt.words.size} mots")
+        } catch (e: Exception) {
+            AppLogger.err("Restore", "Erreur restauration session", e)
+        }
     }
 
     private suspend fun applyAndShowTimeline(timeline: com.google.gson.JsonArray) {
@@ -335,10 +372,15 @@ class MainActivity : AppCompatActivity() {
         var finalTimeline = timeline
         if (insertions.isNotEmpty()) {
             setStatus("Insertion des silences (${insertions.size})...")
-            currentAudioPath = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                videoExporter.applyAudioInsertions(currentAudioPath!!, insertions)
+            currentAudioPath = withContext(Dispatchers.IO) {
+                val newPath = videoExporter.applyAudioInsertions(currentAudioPath!!, insertions)
+                File(newPath).copyTo(File(filesDir, "last_audio.mp3"), overwrite = true)
+                File(filesDir, "last_audio.mp3").absolutePath
             }
             currentSttResult = shiftTimestamps(currentSttResult!!, insertions)
+            withContext(Dispatchers.IO) {
+                File(filesDir, "last_stt.json").writeText(plainGson.toJson(currentSttResult))
+            }
             val filtered = com.google.gson.JsonArray()
             timeline.forEach { if (it.asJsonObject.get("action")?.asString != "insertSilence") filtered.add(it) }
             finalTimeline = filtered

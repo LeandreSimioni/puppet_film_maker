@@ -63,15 +63,16 @@ CONTRAINTES PHYSIQUES ABSOLUES — la marionnette ne peut faire QUE :
 - Exprimer une émotion sur le visage (sourire, tristesse, colère, surprise)
 - Changer le ton de la voix [Angry], [Sad], [Happy], [Excited], [Neutral]
 - Faire une pause [Pause Xs]
+- Faire des gestes avec les bras (lever un bras, geste expressif, pointer, hausser les épaules)
 
 INTERDIT (physiquement impossible) :
 - Entrer ou sortir de scène
 - Se déplacer, marcher, s'approcher
 - Tenir ou saisir des objets
-- Faire des gestes avec les mains ou le corps
 
 Exemples de didascalies valides :
-[Elle regarde vers le bas], [Pause 1.5s], [Angry], [Regard caméra], [Incline la tête], [Sad], [Regard vers la gauche]
+[Elle regarde vers le bas], [Pause 1.5s], [Angry], [Regard caméra], [Incline la tête], [Sad],
+[Regard vers la gauche], [Lève les bras], [Geste expressif], [Hausse les épaules], [Pointe du doigt]
         """.trimIndent()
 
         callLLM(systemPrompt, subject)
@@ -208,24 +209,15 @@ Tu génères une timeline JSON qui contrôle absolument tout : animation, audio,
 
 FORMAT : [{"t": 0.0, "action": "...", ...}, ...]
 Les "t" sont en secondes depuis le début de l'audio original.
-
-ACTIONS DISPONIBLES :
-- setGaze(gx, gy)       : direction du regard (-1..1)
-- setRoll(rad)          : inclinaison tête en radians
-- setEmotion(e)         : expression visage (Neutral/Sad/Happy/Excited/Curious/Angry)
-- moveX(x)              : déplacement horizontal (-1..1)
-- insertSilence(duration) : coupe l'audio ici et insère X secondes de silence.
-                            Tous les timestamps après ce point seront décalés automatiquement.
-                            Utilise-le librement pour des effets dramatiques ou des respirations.
-- setBackground(url)    : change le fond visuel (réservé futur — inclure quand même si pertinent)
-
-NE PAS générer setOpen — le lip sync bouche est automatique.
 Réponds UNIQUEMENT avec le JSON, sans commentaire.
 
 PHILOSOPHIE :
 - Tu es libre de restructurer le temps. Si le script dit [Pause 2s], insère un insertSilence(2.0) au bon moment.
 - "Ne rien faire" pendant un intervalle = puppet figé dans son dernier état — c'est intentionnel et expressif.
 - Tu n'es pas lié au rythme de l'audio brut. Tu peux ralentir, respirer, dramatiser.
+
+=== RÉFÉRENCE DES ACTIONS DISPONIBLES ===
+${GitHubConfig.orchestratorDoc}
 
 === CONTRAINTES PHYSIQUES ===
 ${GitHubConfig.constraints}
@@ -258,8 +250,10 @@ ${GitHubConfig.directorMemory}
         val systemPrompt = """
 Tu es régisseur de marionnettes. On te donne une timeline existante et une demande de modification.
 Retourne la timeline corrigée en JSON, même format qu'avant.
-NE PAS générer setOpen.
 Réponds UNIQUEMENT avec le JSON.
+
+=== RÉFÉRENCE DES ACTIONS DISPONIBLES ===
+${GitHubConfig.orchestratorDoc}
 
 === CONTRAINTES PHYSIQUES ===
 ${GitHubConfig.constraints}

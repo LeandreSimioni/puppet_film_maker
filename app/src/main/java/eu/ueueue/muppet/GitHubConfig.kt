@@ -24,8 +24,9 @@ object GitHubConfig {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    var constraints: String = ""   // puppet_constraints.md
-    var directorMemory: String = "" // director_memory.md
+    var constraints: String = ""      // puppet_constraints.md
+    var directorMemory: String = ""   // director_memory.md
+    var orchestratorDoc: String = ""  // orchestrateur.md — actions disponibles
     var isLoaded: Boolean = false
 
     /**
@@ -39,6 +40,9 @@ object GitHubConfig {
 
             directorMemory = fetchFile("director_memory.md")
                 ?: fallbackAssets.open("config/director_memory.md").reader().readText()
+
+            orchestratorDoc = fetchFile("orchestrateur.md")
+                ?: fallbackAssets.open("config/orchestrateur.md").reader().readText()
 
             isLoaded = true
         }

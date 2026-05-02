@@ -32,6 +32,7 @@ const intMat=new THREE.MeshStandardMaterial({color:0x3a0a14,roughness:0.7});
 const whiteMat=new THREE.MeshStandardMaterial({color:0xf5f1e8,roughness:0.4});
 const darkMat=new THREE.MeshStandardMaterial({color:0x1a1410,roughness:0.5});
 const hatMat=new THREE.MeshStandardMaterial({color:0x222222,roughness:0.9});
+const lipMat=new THREE.MeshStandardMaterial({color:0xc07060,roughness:0.65});
 
 const root=new THREE.Group(); scene.add(root);
 
@@ -42,22 +43,51 @@ neck.position.set(0,-0.58,0); root.add(neck);
 const body=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.62,1.6,24),shirtMat);
 body.position.set(0,-1.6,0); root.add(body);
 
+// Bras — phi=PI/2 = avant (+Z), rotation.x négatif = lever vers caméra
+let leftArmGroup,rightArmGroup,leftElbowGroup,rightElbowGroup;
+function makeArm(sx){
+  const g=new THREE.Group();
+  g.position.set(sx*0.58,-0.72,0.05);
+  const ua=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.55,12),skinMat);
+  ua.position.y=-0.275; g.add(ua);
+  const elbow=new THREE.Group(); elbow.position.y=-0.55; g.add(elbow);
+  const fa=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.08,0.5,12),skinMat);
+  fa.position.y=-0.25; elbow.add(fa);
+  const hand=new THREE.Mesh(new THREE.SphereGeometry(0.12,12,10),skinMat);
+  hand.position.y=-0.52; elbow.add(hand);
+  root.add(g);
+  if(sx<0){leftArmGroup=g;leftElbowGroup=elbow;}
+  else{rightArmGroup=g;rightElbowGroup=elbow;}
+}
+makeArm(-1); makeArm(1);
+
 // Tête
 const headGroup=new THREE.Group(); root.add(headGroup);
+// Sphère intérieure sombre — visible quand la bouche s'ouvre
 headGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.9,32,24),intMat));
 
 // Mâchoire haute
 const upperJaw=new THREE.Group(); headGroup.add(upperJaw);
 upperJaw.add(new THREE.Mesh(new THREE.SphereGeometry(1,48,32,0,Math.PI*2,0,Math.PI/2),skinMat));
+
+// Lèvre haute : bande fine à l'équateur, ~70° de large centré sur l'avant (+Z → phi=PI/2)
+// phiStart=PI*0.25 → phi de 45° à 135°, centré sur phi=90° = avant de la sphère
+upperJaw.add(new THREE.Mesh(
+  new THREE.SphereGeometry(1.03,40,5,Math.PI*0.25,Math.PI*0.5,Math.PI/2-0.2,0.22),
+  lipMat));
+
 const hairCap=new THREE.Mesh(new THREE.SphereGeometry(1.04,40,18,0,Math.PI*2,0,Math.PI/3),hairMat);
 hairCap.position.y=0.02; upperJaw.add(hairCap);
 const bangs=new THREE.Mesh(new THREE.SphereGeometry(0.85,22,10),hairMat);
 bangs.scale.set(1,0.18,0.55); bangs.position.set(0,0.7,0.62); upperJaw.add(bangs);
 
+let leftPupil,rightPupil;
 function makeEye(sx){
   const g=new THREE.Group(); g.position.set(sx*0.4,0.45,0.78);
   g.add(new THREE.Mesh(new THREE.SphereGeometry(0.22,22,18),whiteMat));
-  const p=new THREE.Mesh(new THREE.SphereGeometry(0.1,14,12),darkMat); p.position.z=0.16; g.add(p);
+  const p=new THREE.Mesh(new THREE.SphereGeometry(0.1,14,12),darkMat);
+  p.position.z=0.16; g.add(p);
+  if(sx<0) leftPupil=p; else rightPupil=p;
   const b=new THREE.Mesh(new THREE.BoxGeometry(0.32,0.07,0.08),darkMat);
   b.position.set(0,0.3,0.08); b.rotation.z=sx*-0.18; g.add(b);
   upperJaw.add(g);
@@ -75,7 +105,16 @@ crown.position.set(0,1.28,0); upperJaw.add(crown);
 const lowerJaw=new THREE.Group(); headGroup.add(lowerJaw);
 lowerJaw.add(new THREE.Mesh(new THREE.SphereGeometry(1,48,32,0,Math.PI*2,Math.PI/2,Math.PI/2),skinMat));
 
-let state={mouthOpen:0,gazeX:0,gazeY:0,roll:0,posX:0};
+// Lèvre basse : même phi que la haute, bande fine juste sous l'équateur
+lowerJaw.add(new THREE.Mesh(
+  new THREE.SphereGeometry(1.03,40,5,Math.PI*0.25,Math.PI*0.5,Math.PI/2,0.22),
+  lipMat));
+
+let state={
+  mouthOpen:0, gazeX:0, gazeY:0, roll:0, posX:0,
+  eyeX:0, eyeY:0,
+  leftShoulder:0, leftElbow:0, rightShoulder:0, rightElbow:0
+};
 let timeline=[]; let isExporting=false;
 
 function updatePuppet(){
@@ -85,12 +124,30 @@ function updatePuppet(){
   root.position.x=state.posX;
   lowerJaw.rotation.x=state.mouthOpen*0.9;
   upperJaw.rotation.x=-state.mouthOpen*0.25;
+
+  // Pupilles indépendantes — se déplacent sur la surface de l'œil blanc
+  const px=state.eyeX*0.09, py=state.eyeY*0.07;
+  const pz=Math.sqrt(Math.max(0.005,0.16*0.16-px*px-py*py));
+  if(leftPupil){leftPupil.position.x=px;leftPupil.position.y=py;leftPupil.position.z=pz;}
+  if(rightPupil){rightPupil.position.x=px;rightPupil.position.y=py;rightPupil.position.z=pz;}
+
+  // Bras
+  if(leftArmGroup){
+    leftArmGroup.rotation.x=-state.leftShoulder*1.1;
+    leftArmGroup.rotation.z=state.leftShoulder*0.15;
+    leftElbowGroup.rotation.x=state.leftElbow*1.0;
+  }
+  if(rightArmGroup){
+    rightArmGroup.rotation.x=-state.rightShoulder*1.1;
+    rightArmGroup.rotation.z=-state.rightShoulder*0.15;
+    rightElbowGroup.rotation.x=state.rightElbow*1.0;
+  }
 }
 
 function renderLoop(){requestAnimationFrame(renderLoop);updatePuppet();renderer.render(scene,camera);}
 renderLoop();
 
-// Export frames
+// Export frames (test sans timeline)
 function startRender(totalFrames,fps){
   if(isExporting)return;
   isExporting=true;
@@ -98,7 +155,6 @@ function startRender(totalFrames,fps){
   let frame=0;
   function next(){
     if(frame>=totalFrames){isExporting=false;Android.onRenderComplete();return;}
-    // Animation test : bouche oscille
     state.mouthOpen=0.5+0.5*Math.sin(frame*(1/fps)*Math.PI*2);
     updatePuppet();
     renderer.render(scene,camera);
@@ -116,7 +172,6 @@ function computeLipSync(t,words){
       return 0.35+0.65*Math.sin(p*Math.PI);
     }
   }
-  // fermeture progressive 80ms après la fin du mot
   const prev=words.filter(w=>w.end<=t).pop();
   if(prev&&t-prev.end<0.08) return(1-(t-prev.end)/0.08)*0.25;
   return 0;
@@ -178,6 +233,17 @@ function applyAction(ev){
   else if(ev.action==='setRoll'){state.roll=ev.rad??0;}
   else if(ev.action==='setMouth'){state.mouthOpen=ev.amount??0;}
   else if(ev.action==='moveX'){state.posX=ev.x??0;}
+  else if(ev.action==='setEye'){state.eyeX=ev.ex??0;state.eyeY=ev.ey??0;}
+  else if(ev.action==='setArm'){
+    const s=ev.side;
+    if(s==='left'){
+      if(ev.shoulder!==undefined)state.leftShoulder=ev.shoulder;
+      if(ev.elbow!==undefined)state.leftElbow=ev.elbow;
+    }else{
+      if(ev.shoulder!==undefined)state.rightShoulder=ev.shoulder;
+      if(ev.elbow!==undefined)state.rightElbow=ev.elbow;
+    }
+  }
 }
 
 function setBackgroundUrl(url){
