@@ -290,7 +290,7 @@ class MainActivity : AppCompatActivity() {
         val srtPath = videoExporter.generateSrt(stt)
         val timelineJson = timeline.toString()
         val wordsJson = stt.words.joinToString(",", "[", "]") {
-            """{"start":${it.start},"end":${it.end}}"""
+            """{"text":${gson.toJson(it.text)},"start":${it.start},"end":${it.end}}"""
         }
         binding.webView.evaluateJavascript(
             "startRenderWithTimeline($timelineJson, ${stt.durationSeconds}, $wordsJson)", null
