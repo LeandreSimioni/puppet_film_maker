@@ -60,6 +60,15 @@ Il ne reviendra pas.
 - `[Didascalie]` = mouvement (interprété par l'Orchestrateur)
 - `[Pause Xs]` = silence
 
+## Exigences de qualité — NON NÉGOCIABLES
+
+**Ce n'est pas un prototype ou un jouet. C'est une émission de qualité professionnelle.**
+
+- **Lip sync mot par mot** obligatoire — les timestamps `word` du STT sont la base du rendu. Ne jamais accepter un fallback segment-level comme solution finale.
+- **Voix Marie** avec l'émotion exacte — pas de substitut générique.
+- **1080×1080** — pas de downgrade de résolution sans raison technique prouvée.
+- Si une API ne supporte pas une fonctionnalité requise, chercher comment la débloquer — pas comment la contourner.
+
 ## Notes
 
 - Clé API dans `assets/config/config.json` — ne jamais committer (voir .gitignore)
