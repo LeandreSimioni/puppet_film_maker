@@ -49,6 +49,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val pickJingle = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri ?: return@registerForActivityResult
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dest = File(filesDir, "jingle.mp3")
+            contentResolver.openInputStream(uri)!!.use { it.copyTo(dest.outputStream()) }
+            getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+                .edit().putString("jingle_path", dest.absolutePath).apply()
+            withContext(Dispatchers.Main) {
+                setStatus("Jingle importé → ${dest.name} (${dest.length() / 1024}ko)")
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AppLogger.init(this)
@@ -211,6 +224,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnBackground.setOnClickListener { pickBackground.launch("image/*") }
+        binding.btnImportJingle.setOnClickListener { pickJingle.launch("audio/*") }
 
         binding.btnLogs.setOnClickListener { showLogsDialog() }
 

@@ -201,6 +201,15 @@
             android:layout_marginBottom="4dp" />
 
         <Button
+            android:id="@+id/btnImportJingle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Importer un jingle (MP3)"
+            android:backgroundTint="#1a1a1a"
+            android:textColor="#444"
+            android:layout_marginBottom="4dp" />
+
+        <Button
             android:id="@+id/btnApiKey"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
