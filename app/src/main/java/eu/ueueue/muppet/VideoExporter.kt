@@ -2,6 +2,7 @@ package eu.ueueue.muppet
 
 import android.content.ContentValues
 import android.content.Context
+import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -20,8 +21,7 @@ class VideoExporter(private val context: Context) {
         fps: Int = 30,
         outputName: String = "muppet_${System.currentTimeMillis()}.mp4",
         introCardPath: String? = null,
-        outroCardPath: String? = null,
-        cardDurationSeconds: Double = 2.5
+        outroCardPath: String? = null
     ): String = withContext(Dispatchers.IO) {
         val frameCount = File(framesDir).listFiles()?.size ?: 0
         AppLogger.log("FFmpeg", "frames: $frameCount, intro: $introCardPath, outro: $outroCardPath")
@@ -33,20 +33,22 @@ class VideoExporter(private val context: Context) {
                   "-vf 'scale=1080:1080' -c:v h264_mediacodec -b:v 6M " +
                   "-y '${mainVid.absolutePath}'")
 
-        // Cartes intro/outro → segments vidéo à durée fixe
-        val introVid = introCardPath?.let { encodeCardSegment(it, cardDurationSeconds, fps) }
-        val outroVid  = outroCardPath?.let { encodeCardSegment(it, cardDurationSeconds, fps) }
+        // Cases intro/outro — re-encodées à 1080×1080 pour compatibilité concat
+        val introDuration = introCardPath?.let { getVideoDurationSeconds(it) } ?: 0.0
+        val outroDuration  = outroCardPath?.let { getVideoDurationSeconds(it) }  ?: 0.0
+        val introVid = introCardPath?.let { prepareCardVideo(it) }
+        val outroVid  = outroCardPath?.let { prepareCardVideo(it) }
 
         // Concat vidéo : [intro?] + main + [outro?]
         val videoParts = listOfNotNull(introVid, mainVid, outroVid)
         val combinedVid = if (videoParts.size == 1) mainVid else concatVideos(videoParts)
 
-        // Ajustement audio : ajouter silence pour chaque carte présente
+        // Ajustement audio : silence calé sur la durée réelle de chaque case
         val finalAudio = if (audioPath != null && (introVid != null || outroVid != null)) {
             val parts = mutableListOf<File>()
-            if (introVid != null) parts += createSilenceWav(cardDurationSeconds)
+            if (introVid != null) parts += createSilenceWav(introDuration)
             parts += File(audioPath)
-            if (outroVid != null) parts += createSilenceWav(cardDurationSeconds)
+            if (outroVid != null) parts += createSilenceWav(outroDuration)
             val out = File(context.cacheDir, "audio_cards_${System.currentTimeMillis()}.m4a").absolutePath
             concatenateAudio(parts, out)
             out
@@ -65,7 +67,7 @@ class VideoExporter(private val context: Context) {
         }
         runFFmpeg(cmd2)
 
-        // Nettoyage fichiers temporaires
+        // Nettoyage
         if (combinedVid != mainVid) combinedVid.delete()
         introVid?.delete()
         outroVid?.delete()
@@ -78,12 +80,25 @@ class VideoExporter(private val context: Context) {
         finalPath
     }
 
-    private fun encodeCardSegment(imagePath: String, durationSeconds: Double, fps: Int): File {
+    private fun prepareCardVideo(videoPath: String): File {
         val out = File(context.cacheDir, "card_${System.currentTimeMillis()}.mp4")
-        runFFmpeg("-loop 1 -framerate $fps -t $durationSeconds -i '$imagePath' " +
-                  "-vf 'scale=1080:1080' -c:v h264_mediacodec -b:v 6M " +
+        runFFmpeg("-i '$videoPath' -vf 'scale=1080:1080' -c:v h264_mediacodec -b:v 6M " +
                   "-y '${out.absolutePath}'")
         return out
+    }
+
+    private fun getVideoDurationSeconds(path: String): Double {
+        val mmr = MediaMetadataRetriever()
+        return try {
+            mmr.setDataSource(path)
+            val ms = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            ms / 1000.0
+        } catch (e: Exception) {
+            AppLogger.err("FFmpeg", "Impossible de lire la durée de $path", e)
+            0.0
+        } finally {
+            mmr.release()
+        }
     }
 
     private fun concatVideos(parts: List<File>): File {

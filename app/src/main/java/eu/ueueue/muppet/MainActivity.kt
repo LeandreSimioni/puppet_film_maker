@@ -67,11 +67,11 @@ class MainActivity : AppCompatActivity() {
         uri ?: return@registerForActivityResult
         lifecycleScope.launch(Dispatchers.IO) {
             contentResolver.openInputStream(uri)!!.use {
-                it.copyTo(File(filesDir, "intro_card.jpg").outputStream())
+                it.copyTo(File(filesDir, "intro_card.mp4").outputStream())
             }
             withContext(Dispatchers.Main) {
                 refreshCardButtonLabels()
-                setStatus("Case intro importée (2.5s au début de chaque vidéo).")
+                setStatus("Case intro importée.")
             }
         }
     }
@@ -80,11 +80,11 @@ class MainActivity : AppCompatActivity() {
         uri ?: return@registerForActivityResult
         lifecycleScope.launch(Dispatchers.IO) {
             contentResolver.openInputStream(uri)!!.use {
-                it.copyTo(File(filesDir, "outro_card.jpg").outputStream())
+                it.copyTo(File(filesDir, "outro_card.mp4").outputStream())
             }
             withContext(Dispatchers.Main) {
                 refreshCardButtonLabels()
-                setStatus("Case finale importée (2.5s à la fin de chaque vidéo).")
+                setStatus("Case finale importée.")
             }
         }
     }
@@ -258,8 +258,8 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnBackground.setOnClickListener { pickBackground.launch("image/*") }
         binding.btnImportJingle.setOnClickListener { pickJingle.launch("audio/*") }
-        binding.btnImportIntroCard.setOnClickListener { pickIntroCard.launch("image/*") }
-        binding.btnImportOutroCard.setOnClickListener { pickOutroCard.launch("image/*") }
+        binding.btnImportIntroCard.setOnClickListener { pickIntroCard.launch("video/*") }
+        binding.btnImportOutroCard.setOnClickListener { pickOutroCard.launch("video/*") }
 
         binding.btnLogs.setOnClickListener { showLogsDialog() }
 
@@ -445,8 +445,8 @@ class MainActivity : AppCompatActivity() {
         setStatus("Assemblage vidéo ($frameCount frames)...")
         lifecycleScope.launch {
             try {
-                val introPath = File(filesDir, "intro_card.jpg").takeIf { it.exists() }?.absolutePath
-                val outroPath = File(filesDir, "outro_card.jpg").takeIf { it.exists() }?.absolutePath
+                val introPath = File(filesDir, "intro_card.mp4").takeIf { it.exists() }?.absolutePath
+                val outroPath = File(filesDir, "outro_card.mp4").takeIf { it.exists() }?.absolutePath
                 val outputPath = videoExporter.assembleVideo(
                     framesDir = framesDir,
                     audioPath = puppetBridge.pendingAudioPath,
@@ -464,8 +464,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshCardButtonLabels() {
-        val hasIntro = File(filesDir, "intro_card.jpg").exists()
-        val hasOutro = File(filesDir, "outro_card.jpg").exists()
+        val hasIntro = File(filesDir, "intro_card.mp4").exists()
+        val hasOutro = File(filesDir, "outro_card.mp4").exists()
         binding.btnImportIntroCard.text = if (hasIntro) "Case intro ✓  [changer]" else "Case intro  [importer]"
         binding.btnImportOutroCard.text = if (hasOutro) "Case finale ✓  [changer]" else "Case finale  [importer]"
     }
