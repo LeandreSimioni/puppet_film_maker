@@ -172,8 +172,16 @@ Exemples de didascalies valides :
         val response = http.newCall(request).execute()
         val responseBody = response.body!!.string()
         if (!response.isSuccessful) throw RuntimeException("STT error ${response.code}: $responseBody")
+        AppLogger.log("STT", "response: $responseBody")
         val json = gson.fromJson(responseBody, JsonObject::class.java)
-        val words = json.getAsJsonArray("words").map {
+        val wordsArray = json.getAsJsonArray("words")
+            ?: json.getAsJsonArray("segments")
+                ?.flatMap { seg ->
+                    seg.asJsonObject.getAsJsonArray("words")?.toList() ?: emptyList()
+                }
+                ?.let { list -> com.google.gson.JsonArray().also { arr -> list.forEach(arr::add) } }
+            ?: throw RuntimeException("STT: champ 'words' introuvable. Réponse : $responseBody")
+        val words = wordsArray.map {
             val w = it.asJsonObject
             WordTimestamp(w.get("word").asString, w.get("start").asDouble, w.get("end").asDouble)
         }
