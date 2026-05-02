@@ -70,17 +70,39 @@
             android:id="@+id/btnValidate"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Valider le script → TTS + STT + Orchestration"
+            android:text="Valider → TTS + STT"
             android:backgroundTint="#1a2e1a"
             android:textColor="#4caf50"
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/btnCopyForClaude"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Copier pour Claude (script + timestamps)"
+            android:backgroundTint="#1a1a2e"
+            android:textColor="#90caf9"
+            android:enabled="false"
+            android:layout_marginBottom="4dp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnOrchestrate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Orchestrer avec Mistral (optionnel)"
+            android:backgroundTint="#1a1a1a"
+            android:textColor="#888"
+            android:enabled="false"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone" />
 
         <!-- ÉTAPE 2 : timeline JSON -->
         <TextView
             android:id="@+id/labelTimeline"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="2. TIMELINE JSON (modifiable)"
+            android:text="2. TIMELINE JSON — colle ici le JSON de Claude"
             android:textColor="#555"
             android:fontFamily="monospace"
             android:textSize="11sp"
@@ -93,6 +115,8 @@
             android:layout_height="200dp"
             android:background="#0d1a0d"
             android:textColor="#a5d6a7"
+            android:hint="Colle ici la timeline JSON générée par Claude..."
+            android:textColorHint="#2a4a2a"
             android:padding="12dp"
             android:gravity="top"
             android:inputType="textMultiLine"

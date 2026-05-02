@@ -130,26 +130,54 @@ class MainActivity : AppCompatActivity() {
             if (currentScript.isBlank()) return@setOnClickListener
             lifecycleScope.launch {
                 try {
-                    generateAudioAndOrchestrate()
+                    runTtsAndStt()
                 } catch (e: Exception) {
                     showError("Erreur pipeline audio", e)
                 }
             }
         }
 
-        binding.btnRender.setOnClickListener {
+        binding.btnCopyForClaude.setOnClickListener {
             val stt = currentSttResult ?: return@setOnClickListener
-            val audio = currentAudioPath ?: return@setOnClickListener
+            val content = buildString {
+                appendLine("SCRIPT:")
+                appendLine(currentScript)
+                appendLine()
+                appendLine("TIMESTAMPS MOT PAR MOT:")
+                stt.words.forEach { appendLine("  ${it.start}s–${it.end}s : ${it.text}") }
+                appendLine()
+                appendLine("DURÉE TOTALE : ${stt.durationSeconds}s")
+            }
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("claude_context", content))
+            setStatus("Copié — colle dans Claude.ai et récupère le JSON de timeline.")
+        }
+
+        binding.btnOrchestrate.setOnClickListener {
+            val stt = currentSttResult ?: return@setOnClickListener
+            lifecycleScope.launch {
+                try {
+                    setStatus("Orchestration Mistral...")
+                    val timeline = mistralClient.orchestrate(currentScript, stt)
+                    applyAndShowTimeline(timeline)
+                } catch (e: Exception) {
+                    showError("Erreur orchestration", e)
+                }
+            }
+        }
+
+        binding.btnRender.setOnClickListener {
+            if (currentSttResult == null || currentAudioPath == null) return@setOnClickListener
             val timelineJson = binding.timelineInput.text.toString().trim()
             val timeline = try {
                 com.google.gson.JsonParser.parseString(timelineJson).asJsonArray
             } catch (e: Exception) {
                 showError("JSON timeline invalide", e); return@setOnClickListener
             }
-            currentTimeline = timeline
             lifecycleScope.launch {
                 try {
-                    launchRender(timeline, stt, audio)
+                    applyAndShowTimeline(timeline)
+                    launchRender(currentTimeline!!, currentSttResult!!, currentAudioPath!!)
                 } catch (e: Exception) {
                     showError("Erreur rendu", e)
                 }
@@ -266,42 +294,47 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private suspend fun generateAudioAndOrchestrate() {
+    private suspend fun runTtsAndStt() {
         setStatus("Synthèse vocale...")
         currentAudioPath = mistralClient.tts(extractTextOnly(currentScript))
 
         setStatus("Analyse des timestamps...")
         currentSttResult = mistralClient.stt(currentAudioPath!!)
 
-        setStatus("Orchestration...")
-        currentTimeline = mistralClient.orchestrate(currentScript, currentSttResult!!)
+        setStatus("Prêt — copie pour Claude ou orchestre avec Mistral.")
+        binding.labelTimeline.visibility = View.VISIBLE
+        binding.timelineInput.visibility = View.VISIBLE
+        binding.btnCopyForClaude.visibility = View.VISIBLE
+        binding.btnCopyForClaude.isEnabled = true
+        binding.btnOrchestrate.visibility = View.VISIBLE
+        binding.btnOrchestrate.isEnabled = true
+    }
 
-        // Appliquer les insertSilence décidés par l'orchestrateur
-        val insertions = currentTimeline!!.mapNotNull { el ->
+    private suspend fun applyAndShowTimeline(timeline: com.google.gson.JsonArray) {
+        val insertions = timeline.mapNotNull { el ->
             val obj = el.asJsonObject
             if (obj.get("action")?.asString == "insertSilence")
                 VideoExporter.SilenceInsertion(obj.get("t").asDouble, obj.get("duration").asDouble)
             else null
         }.sortedBy { it.atSeconds }
 
+        var finalTimeline = timeline
         if (insertions.isNotEmpty()) {
             setStatus("Insertion des silences (${insertions.size})...")
             currentAudioPath = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 videoExporter.applyAudioInsertions(currentAudioPath!!, insertions)
             }
             currentSttResult = shiftTimestamps(currentSttResult!!, insertions)
-            // Retirer insertSilence de la timeline (déjà appliqué)
             val filtered = com.google.gson.JsonArray()
-            currentTimeline!!.forEach { if (it.asJsonObject.get("action")?.asString != "insertSilence") filtered.add(it) }
-            currentTimeline = filtered
+            timeline.forEach { if (it.asJsonObject.get("action")?.asString != "insertSilence") filtered.add(it) }
+            finalTimeline = filtered
         }
 
-        setStatus("Timeline prête — modifie le JSON si besoin, puis lance le rendu.")
-        binding.labelTimeline.visibility = View.VISIBLE
-        binding.timelineInput.visibility = View.VISIBLE
-        binding.timelineInput.setText(gson.toJson(currentTimeline))
+        currentTimeline = finalTimeline
+        binding.timelineInput.setText(gson.toJson(finalTimeline))
         binding.btnRender.isEnabled = true
         binding.btnRefine.isEnabled = true
+        setStatus("Timeline prête — lance le rendu.")
     }
 
     private fun shiftTimestamps(stt: SttResult, insertions: List<VideoExporter.SilenceInsertion>): SttResult {
