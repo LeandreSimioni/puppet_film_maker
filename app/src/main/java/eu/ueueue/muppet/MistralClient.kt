@@ -12,6 +12,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.util.concurrent.TimeUnit
+import android.util.Base64
 
 data class WordTimestamp(val text: String, val start: Double, val end: Double)
 data class SttResult(val words: List<WordTimestamp>, val durationSeconds: Double)
@@ -78,8 +79,9 @@ Exemples de didascalies valides :
     suspend fun tts(text: String): String =
         withContext(Dispatchers.IO) {
             val body = JsonObject().apply {
-                addProperty("model", "mistral-tts-latest")
+                addProperty("model", "voxtral-mini-tts-2603")
                 addProperty("input", text)
+                addProperty("voice_id", "marie")
                 addProperty("response_format", "mp3")
             }
             AppLogger.log("TTS", "request body: $body")
@@ -93,8 +95,15 @@ Exemples de didascalies valides :
                 val errorBody = response.body?.string() ?: "(vide)"
                 throw RuntimeException("TTS error ${response.code}: $errorBody")
             }
+            val responseBody = response.body!!.string()
+            val audioBytes = try {
+                val json = gson.fromJson(responseBody, JsonObject::class.java)
+                Base64.decode(json.get("audio_data").asString, Base64.DEFAULT)
+            } catch (e: Exception) {
+                responseBody.toByteArray(Charsets.ISO_8859_1)
+            }
             val audioFile = File(context.cacheDir, "tts_${System.currentTimeMillis()}.mp3")
-            audioFile.writeBytes(response.body!!.bytes())
+            audioFile.writeBytes(audioBytes)
             audioFile.absolutePath
         }
 
@@ -103,7 +112,7 @@ Exemples de didascalies valides :
     // ─────────────────────────────────────────
     suspend fun stt(audioPath: String): SttResult = withContext(Dispatchers.IO) {
         val audioBytes = File(audioPath).readBytes()
-        val base64Audio = android.util.Base64.encodeToString(audioBytes, android.util.Base64.NO_WRAP)
+        val base64Audio = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
         val body = JsonObject().apply {
             addProperty("model", "voxtral-mini-transcribe")
             addProperty("audio", base64Audio)
