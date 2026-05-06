@@ -29,6 +29,3 @@ Il est lu à chaque génération et injecté dans le prompt de l'Orchestrateur.
 - Maximum 1 changement de position par 0.8 secondes — pas de mouvements frénétiques
 - Les pauses (marionnette immobile) ne doivent pas dépasser 4 secondes consécutives
 
-## Émotions vocales disponibles
-
-Neutral, Sad, Happy, Excited, Curious, Angry

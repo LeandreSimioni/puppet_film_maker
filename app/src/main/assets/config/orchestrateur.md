@@ -99,17 +99,6 @@ Le lip sync est entièrement calculé à partir des timestamps STT mot par mot.
 
 ---
 
-## RÉSERVÉ (futur — inclure quand même si pertinent)
-
-### setEmotion(e)
-Expression du visage.
-- `e` : `"Neutral"`, `"Sad"`, `"Happy"`, `"Excited"`, `"Curious"`, `"Angry"`
-
-### setBackground(name)
-Changement de fond visuel.
-
----
-
 ## RÈGLES DE MISE EN SCÈNE
 
 1. **Varier le regard toutes les 2–4 secondes.** Un regard fixe = personnage mort.
