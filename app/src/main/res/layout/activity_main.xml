@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#0a0400">
@@ -12,13 +11,6 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Preview marionnette -->
-        <WebView
-            android:id="@+id/webView"
-            android:layout_width="match_parent"
-            android:layout_height="300dp"
-            android:layout_marginBottom="16dp" />
-
         <!-- Statut -->
         <TextView
             android:id="@+id/statusText"
@@ -28,13 +20,13 @@
             android:textColor="#ff9800"
             android:fontFamily="monospace"
             android:textSize="12sp"
-            android:layout_marginBottom="12dp" />
+            android:layout_marginBottom="16dp" />
 
-        <!-- ÉTAPE 1 : sujet / script -->
+        <!-- ÉTAPE 1 : texte à lire -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="1. SCRIPT"
+            android:text="1. TEXTE"
             android:textColor="#555"
             android:fontFamily="monospace"
             android:textSize="11sp"
@@ -46,7 +38,7 @@
             android:layout_height="280dp"
             android:background="#1a0e00"
             android:textColor="#e8e0d0"
-            android:hint="Décris ton sujet ou colle un script avec [didascalies]"
+            android:hint="Texte à lire par la marionnette"
             android:textColorHint="#444"
             android:padding="12dp"
             android:gravity="top"
@@ -58,19 +50,10 @@
             android:layout_marginBottom="8dp" />
 
         <Button
-            android:id="@+id/btnRedact"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Générer le script avec didascalies"
-            android:backgroundTint="#1a1a2e"
-            android:textColor="#ce93d8"
-            android:layout_marginBottom="4dp" />
-
-        <Button
             android:id="@+id/btnValidate"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Valider → TTS + STT"
+            android:text="Créer son"
             android:backgroundTint="#1a2e1a"
             android:textColor="#4caf50"
             android:layout_marginBottom="4dp" />
@@ -82,16 +65,6 @@
             android:text="Copier pour Claude (script + timestamps)"
             android:backgroundTint="#1a1a2e"
             android:textColor="#90caf9"
-            android:enabled="false"
-            android:layout_marginBottom="4dp" />
-
-        <Button
-            android:id="@+id/btnOrchestrate"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Orchestrer avec Mistral (optionnel)"
-            android:backgroundTint="#1a1a1a"
-            android:textColor="#888"
             android:enabled="false"
             android:layout_marginBottom="16dp" />
 
@@ -140,67 +113,14 @@
             android:backgroundTint="#2e1a00"
             android:textColor="#ff9800"
             android:enabled="false"
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="24dp" />
 
-        <!-- ÉTAPE 4 : correction -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="4. CORRECTIONS (audio réutilisé)"
-            android:textColor="#555"
-            android:fontFamily="monospace"
-            android:textSize="11sp"
-            android:layout_marginBottom="4dp" />
-
-        <EditText
-            android:id="@+id/refineInput"
-            android:layout_width="match_parent"
-            android:layout_height="80dp"
-            android:background="#1a0e00"
-            android:textColor="#e8e0d0"
-            android:hint="Ex: Elle bouge trop peu. Ajoute plus de regards vers le bas."
-            android:textColorHint="#444"
-            android:padding="12dp"
-            android:gravity="top"
-            android:inputType="textMultiLine"
-            android:fontFamily="monospace"
-            android:textSize="13sp"
-            android:layout_marginBottom="8dp" />
-
-        <Button
-            android:id="@+id/btnRefine"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Corriger la timeline → re-rendre"
-            android:backgroundTint="#1a1a2e"
-            android:textColor="#ce93d8"
-            android:enabled="false"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Test Phase 1 -->
-        <Button
-            android:id="@+id/btnTestExport"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="[DEV] Test export 5s sans audio"
-            android:backgroundTint="#1a1a1a"
-            android:textColor="#555"
-            android:layout_marginBottom="4dp" />
-
+        <!-- Réglages -->
         <Button
             android:id="@+id/btnBackground"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Changer le fond"
-            android:backgroundTint="#1a1a1a"
-            android:textColor="#444"
-            android:layout_marginBottom="4dp" />
-
-        <Button
-            android:id="@+id/btnImportJingle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Importer un jingle (MP3)"
             android:backgroundTint="#1a1a1a"
             android:textColor="#444"
             android:layout_marginBottom="4dp" />
@@ -247,7 +167,15 @@
             android:layout_height="wrap_content"
             android:text="Voir logs"
             android:backgroundTint="#1a1a1a"
-            android:textColor="#666" />
+            android:textColor="#666"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Preview marionnette — carré, en bas -->
+        <WebView
+            android:id="@+id/webView"
+            android:layout_width="match_parent"
+            android:layout_height="320dp"
+            android:layout_marginBottom="8dp" />
 
     </LinearLayout>
 </ScrollView>

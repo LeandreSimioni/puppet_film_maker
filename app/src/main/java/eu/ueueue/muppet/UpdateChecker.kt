@@ -109,8 +109,6 @@ object UpdateChecker {
                 val req = Request.Builder().url(apkUrl).build()
                 http.newCall(req).execute().use { resp ->
                     val body = resp.body ?: throw RuntimeException("Corps de réponse vide")
-                    val total: Long = body.contentLength()
-                    var downloaded = 0L
                     FileOutputStream(file).use { out ->
                         body.byteStream().use { input ->
                             val buf = ByteArray(8192)
@@ -118,12 +116,6 @@ object UpdateChecker {
                             while (input.read(buf).also { n = it } != -1) {
                                 out.write(buf, 0, n)
                                 downloaded += n
-                                if (total > 0) {
-                                    val pct: Int = (downloaded * 100 / total).toInt()
-                                    if (pct % 10 == 0) {
-                                        activity.runOnUiThread { onStatus("Téléchargement $pct%...") }
-                                    }
-                                }
                             }
                         }
                     }

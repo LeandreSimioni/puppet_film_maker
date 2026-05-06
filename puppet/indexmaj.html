@@ -17,20 +17,14 @@
 <script>
 const W=1080, H=1080;
 const renderer=new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(W, H);
 document.body.appendChild(renderer.domElement);
 
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x150800);
-const camera=new THREE.PerspectiveCamera(42, window.innerWidth/window.innerHeight, 0.1, 100);
+const camera=new THREE.PerspectiveCamera(42, W/H, 0.1, 100);
 camera.position.set(0, 0.2, 6);
 camera.lookAt(0, 0.2, 0);
-
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
 
 scene.add(new THREE.AmbientLight(0xffeedd, 0.4));
 const keyLight=new THREE.DirectionalLight(0xfff5e0, 1.6);
