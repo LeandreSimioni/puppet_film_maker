@@ -149,9 +149,29 @@ function captureFrame(t, words){
   return comp.toDataURL('image/jpeg',0.9);
 }
 
+// --- Tween engine ---
+const tweens = [];
+
+function addTween(prop, to, startT, duration) {
+  const idx = tweens.findIndex(tw => tw.prop === prop);
+  if (idx !== -1) tweens.splice(idx, 1);
+  tweens.push({ prop, from: state[prop] ?? 0, to, startT, duration });
+}
+
+function stepTweens(t) {
+  for (let i = tweens.length - 1; i >= 0; i--) {
+    const tw = tweens[i];
+    const alpha = Math.min((t - tw.startT) / tw.duration, 1.0);
+    const eased = alpha < 0.5 ? 2*alpha*alpha : -1+(4-2*alpha)*alpha;
+    state[tw.prop] = tw.from + (tw.to - tw.from) * eased;
+    if (alpha >= 1.0) tweens.splice(i, 1);
+  }
+}
+
 function startRenderWithTimeline(tl, duration, words){
   words=words||[];
   timeline=tl.map(e=>({...e,_done:false}));
+  tweens.length=0;
   const fps=30, totalFrames=Math.ceil(duration*fps);
   if(isExporting)return;
   isExporting=true;
@@ -165,8 +185,9 @@ function startRenderWithTimeline(tl, duration, words){
     }
     const t=frame/fps;
     for(const ev of timeline){
-      if(!ev._done&&t>=ev.t){ applyAction(ev); ev._done=true; }
+      if(!ev._done&&t>=ev.t){ applyAction(ev,t); ev._done=true; }
     }
+    stepTweens(t);
     state.mouthOpen=computeLipSync(t,words);
     updatePuppet();
     renderer.render(scene,camera);
@@ -176,24 +197,30 @@ function startRenderWithTimeline(tl, duration, words){
   next();
 }
 
-function applyAction(ev){
-  if(ev.action==='setGaze')      { state.gazeX=ev.gx??0; state.gazeY=ev.gy??0; }
-  else if(ev.action==='setRoll') { state.roll=ev.rad??0; }
-  else if(ev.action==='setTilt') { state.tiltZ=ev.rad??0; }
-  else if(ev.action==='setSpin') { state.spinY=ev.rad??0; }
-  else if(ev.action==='setMouth'){ state.mouthOpen=ev.amount??0; }
-  else if(ev.action==='moveX')   { state.posX=ev.x??0; }
-  else if(ev.action==='moveY')   { state.posY=ev.y??0; }
-  else if(ev.action==='setEye')  { state.eyeX=ev.ex??0; state.eyeY=ev.ey??0; }
-  else if(ev.action==='setArm'){
-    const s=ev.side;
-    if(s==='left'){
-      if(ev.shoulder!==undefined) state.leftShoulder=ev.shoulder;
-      if(ev.elbow!==undefined)    state.leftElbow=ev.elbow;
-    } else {
-      if(ev.shoulder!==undefined) state.rightShoulder=ev.shoulder;
-      if(ev.elbow!==undefined)    state.rightElbow=ev.elbow;
+function applyAction(ev, currentT){
+  const dur = ev.duration ?? 0.25;
+  switch(ev.action){
+    case 'setGaze':
+      addTween('gazeX', ev.gx??0, currentT, dur);
+      addTween('gazeY', ev.gy??0, currentT, dur);
+      break;
+    case 'setRoll':  addTween('roll',  ev.rad??0, currentT, dur); break;
+    case 'setTilt':  addTween('tiltZ', ev.rad??0, currentT, dur); break;
+    case 'setSpin':  addTween('spinY', ev.rad??0, currentT, dur); break;
+    case 'setEye':
+      addTween('eyeX', ev.ex??0, currentT, dur);
+      addTween('eyeY', ev.ey??0, currentT, dur);
+      break;
+    case 'moveX':   addTween('posX', ev.x??0, currentT, dur); break;
+    case 'moveY':   addTween('posY', ev.y??0, currentT, dur); break;
+    case 'setArm': {
+      const prefix = ev.side==='left' ? 'left' : 'right';
+      if(ev.shoulder!==undefined) addTween(prefix+'Shoulder', ev.shoulder, currentT, dur);
+      if(ev.elbow!==undefined)    addTween(prefix+'Elbow',    ev.elbow,    currentT, dur);
+      break;
     }
+    case 'setMouth': state.mouthOpen = ev.amount??0; break;
+    default: break;
   }
 }
 

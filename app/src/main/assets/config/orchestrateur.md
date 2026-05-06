@@ -104,9 +104,30 @@ Retour au repos :
 Coupe l'audio et insère `duration` secondes de silence.
 Tous les timestamps **après ce point** sont décalés automatiquement.
 - `duration` : durée en secondes.
-- Exemple : `{"t": 3.8, "action": "insertSilence", "duration": 1.5}`
-- Usage : pause dramatique, respiration, effet de suspension, ponctuation émotionnelle.
-- Note : peut être utilisé librement, même plusieurs fois dans une timeline.
+- Exemple : `{"t": 3.5, "action": "insertSilence", "duration": 0.6}`
+
+> **Règles pour `insertSilence`** :
+>
+> Le TTS génère déjà des pauses naturelles aux fins de phrases. Les timestamps STT
+> les reflètent. Si tu places un `insertSilence` juste à la fin d'un mot ou au
+> début du mot suivant, tu **doubles** la pause existante — ne fais jamais ça.
+>
+> **Règle :** ne place `insertSilence` que si le gap naturel entre deux mots est
+> insuffisant pour l'effet voulu. Dans ce cas :
+>
+> 1. Calcule le gap naturel : `G = mot_suivant.start − mot_precedent.end`
+> 2. Calcule la durée à insérer : `D = pause_souhaitée − G` (si D ≤ 0, n'insère rien)
+> 3. Place le `t` **au centre** du gap existant : `t = mot_precedent.end + G / 2`
+>
+> **Exemple** : gap naturel de 0.6s entre "dit." (fin 3.2s) et "Il" (début 3.8s),
+> tu veux 1.2s de pause totale :
+> - D = 1.2 − 0.6 = 0.6s à insérer
+> - t = 3.2 + 0.6/2 = 3.5s
+> - → `{"t": 3.5, "action": "insertSilence", "duration": 0.6}`
+>
+> Placer le `t` au centre du gap (et non au bord d'un mot) présente deux avantages :
+> jamais de risque de couper un mot, et les artefacts de découpe audio tombent
+> dans du silence où ils sont inaudibles.
 
 ---
 
