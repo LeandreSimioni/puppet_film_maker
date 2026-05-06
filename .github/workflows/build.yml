@@ -66,4 +66,5 @@ jobs:
           allowUpdates: true
           replacesArtifacts: true
           makeLatest: true
+          draft: false
           prerelease: false
