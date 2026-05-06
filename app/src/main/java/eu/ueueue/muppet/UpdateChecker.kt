@@ -115,7 +115,6 @@ object UpdateChecker {
                             var n: Int
                             while (input.read(buf).also { n = it } != -1) {
                                 out.write(buf, 0, n)
-                                downloaded += n
                             }
                         }
                     }
