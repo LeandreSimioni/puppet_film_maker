@@ -11,21 +11,28 @@
   },
 
   "mouth": {
-    "_doc": "Paramètres de fonctionnement de la bouche et du lip sync. index.html lit ces valeurs au démarrage.",
-    "lower_jaw_scale": 0.65,
-    "_lower_jaw_scale": "Amplitude d'ouverture de la mâchoire inférieure. Plus grand = bouche qui s'ouvre plus.",
-    "upper_jaw_scale": 0.45,
-    "_upper_jaw_scale": "Amplitude d'ouverture de la mâchoire supérieure. Généralement = lower * 0.7.",
-    "lip_sync_baseline": 0.35,
-    "_lip_sync_baseline": "Ouverture minimale de la bouche pendant qu'un mot est prononcé (0=fermée, 1=grande ouverte).",
-    "lip_sync_amplitude": 0.65,
-    "_lip_sync_amplitude": "Amplitude du mouvement au-dessus de la baseline. baseline+amplitude=ouverture max.",
-    "global_scale": 0.7,
-    "_global_scale": "Multiplicateur final appliqué à tout le lip sync. Réduire pour une bouche plus discrète.",
-    "fade_duration": 0.08,
-    "_fade_duration": "Durée en secondes pendant laquelle la bouche reste légèrement ouverte après la fin d'un mot.",
-    "fade_amount": 0.25,
-    "_fade_amount": "Niveau d'ouverture au début du fondu post-mot (0=immédiatement fermée, 1=reste grande ouverte)."
+    "_doc": "Paramètres du lip sync. index.html lit ces valeurs au démarrage. state.mouthOpen est une fraction 0..1, multipliée par les max en radians.",
+
+    "lower_jaw_max_rad": 0.52,
+    "_lower_jaw_max_rad": "Limite physique absolue de la mâchoire inférieure en radians. 0.52 = grande ouverture.",
+
+    "upper_jaw_max_rad": 0.19,
+    "_upper_jaw_max_rad": "Limite physique absolue de la mâchoire supérieure en radians.",
+
+    "baseline_pct": 20,
+    "_baseline_pct": "Ouverture minimum PENDANT un mot, en % du max. 20 = légèrement entrouverte au début/fin du mot.",
+
+    "amplitude_pct": 52,
+    "_amplitude_pct": "Rebond maximum AU CENTRE du mot (pic de la cloche sinusoïdale), en % du max.",
+
+    "fade_delay_sec": 0.02,
+    "_fade_delay_sec": "Durée (s) où la bouche reste sur la baseline juste APRÈS la fin d'un mot. Simule la respiration entre les mots.",
+
+    "fade_duration_sec": 0.05,
+    "_fade_duration_sec": "Durée (s) de la fermeture progressive de la baseline vers 0 après le délai.",
+
+    "global_scale_pct": 100,
+    "_global_scale_pct": "Volume visuel master en %. 100 = nominal. Baisser pour une bouche plus discrète sur toute la vidéo."
   },
 
   "actions": [

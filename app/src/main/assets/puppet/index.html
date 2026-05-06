@@ -36,26 +36,26 @@ let state={
 };
 let timeline=[]; let isExporting=false;
 
-// Paramètres bouche — lus depuis actions-catalog.json, defaults = valeurs de référence
+// Paramètres bouche — lus depuis actions-catalog.json, defaults = valeurs calibrées
 let mouthCfg = {
-  lowerJaw:      0.65,
-  upperJaw:      0.45,
-  baseline:      0.35,
-  amplitude:     0.65,
-  globalScale:   0.7,
-  fadeDuration:  0.08,
-  fadeAmount:    0.25
+  lowerJawMaxRad:  0.52,
+  upperJawMaxRad:  0.19,
+  baselinePct:     20,
+  amplitudePct:    52,
+  fadeDelaySec:    0.02,
+  fadeDurationSec: 0.05,
+  globalScalePct:  100
 };
 fetch('actions-catalog.json').then(r=>r.json()).then(cat=>{
   const m = cat.mouth || {};
-  if(m.lower_jaw_scale   !== undefined) mouthCfg.lowerJaw     = m.lower_jaw_scale;
-  if(m.upper_jaw_scale   !== undefined) mouthCfg.upperJaw     = m.upper_jaw_scale;
-  if(m.lip_sync_baseline !== undefined) mouthCfg.baseline     = m.lip_sync_baseline;
-  if(m.lip_sync_amplitude!== undefined) mouthCfg.amplitude    = m.lip_sync_amplitude;
-  if(m.global_scale      !== undefined) mouthCfg.globalScale  = m.global_scale;
-  if(m.fade_duration     !== undefined) mouthCfg.fadeDuration = m.fade_duration;
-  if(m.fade_amount       !== undefined) mouthCfg.fadeAmount   = m.fade_amount;
-}).catch(()=>{}); // fallback sur les defaults si fetch échoue
+  if(m.lower_jaw_max_rad  !== undefined) mouthCfg.lowerJawMaxRad  = m.lower_jaw_max_rad;
+  if(m.upper_jaw_max_rad  !== undefined) mouthCfg.upperJawMaxRad  = m.upper_jaw_max_rad;
+  if(m.baseline_pct       !== undefined) mouthCfg.baselinePct     = m.baseline_pct;
+  if(m.amplitude_pct      !== undefined) mouthCfg.amplitudePct    = m.amplitude_pct;
+  if(m.fade_delay_sec     !== undefined) mouthCfg.fadeDelaySec    = m.fade_delay_sec;
+  if(m.fade_duration_sec  !== undefined) mouthCfg.fadeDurationSec = m.fade_duration_sec;
+  if(m.global_scale_pct   !== undefined) mouthCfg.globalScalePct  = m.global_scale_pct;
+}).catch(()=>{});
 
 function updatePuppet(){
   const { headGroup, upperJaw, lowerJaw,
@@ -71,8 +71,9 @@ function updatePuppet(){
     headGroup.rotation.x=-(state.gazeY-0.75)*0.35;
     headGroup.rotation.z=state.tiltZ;
   }
-  if(lowerJaw) lowerJaw.rotation.x= state.mouthOpen*mouthCfg.lowerJaw;
-  if(upperJaw) upperJaw.rotation.x=-state.mouthOpen*mouthCfg.upperJaw;
+  const globalScale = mouthCfg.globalScalePct / 100;
+  if(lowerJaw) lowerJaw.rotation.x= state.mouthOpen * mouthCfg.lowerJawMaxRad * globalScale;
+  if(upperJaw) upperJaw.rotation.x=-state.mouthOpen * mouthCfg.upperJawMaxRad * globalScale;
 
   if(leftEyeSocket){
     leftEyeSocket.rotation.x=state.eyeY*0.5;
@@ -134,15 +135,31 @@ function startRender(totalFrames, fps){
 }
 
 function computeLipSync(t, words){
+  const baseFactor = mouthCfg.baselinePct  / 100;
+  const ampFactor  = mouthCfg.amplitudePct / 100;
+
   for(const w of words){
-    if(t>=w.start&&t<=w.end){
-      const p=(t-w.start)/Math.max(w.end-w.start,0.05);
-      return mouthCfg.baseline + mouthCfg.amplitude*Math.sin(p*Math.PI);
+    if(t >= w.start && t <= w.end){
+      // Pendant le mot : courbe en cloche
+      const p = (t - w.start) / Math.max(w.end - w.start, 0.05);
+      return baseFactor + ampFactor * Math.sin(p * Math.PI);
     }
   }
-  const prev=words.filter(w=>w.end<=t).pop();
-  if(prev&&t-prev.end<mouthCfg.fadeDuration)
-    return(1-(t-prev.end)/mouthCfg.fadeDuration)*mouthCfg.fadeAmount;
+
+  const prev = words.filter(w => w.end <= t).pop();
+  if(prev){
+    const elapsed = t - prev.end;
+    if(elapsed <= mouthCfg.fadeDelaySec){
+      // Délai post-mot : bouche maintenue sur la baseline (respiration)
+      return baseFactor;
+    }
+    const inFade = elapsed - mouthCfg.fadeDelaySec;
+    if(inFade <= mouthCfg.fadeDurationSec){
+      // Fermeture progressive de la baseline vers 0
+      const fadeProgress = Math.min(Math.max(inFade / mouthCfg.fadeDurationSec, 0), 1);
+      return baseFactor * (1 - fadeProgress);
+    }
+  }
   return 0;
 }
 
