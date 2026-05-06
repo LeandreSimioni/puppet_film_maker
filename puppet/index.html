@@ -188,7 +188,7 @@ function startRenderWithTimeline(tl, duration, words){
       if(!ev._done&&t>=ev.t){ applyAction(ev,t); ev._done=true; }
     }
     stepTweens(t);
-    state.mouthOpen=computeLipSync(t,words);
+    state.mouthOpen=computeLipSync(t,words)*0.7;
     updatePuppet();
     renderer.render(scene,camera);
     if(typeof Android!=='undefined') Android.onFrame(captureFrame(t,words),frame);
