@@ -108,9 +108,17 @@ class MainActivity : AppCompatActivity() {
                 GitHubConfig.puppetHtml?.let { html ->
                     withContext(Dispatchers.IO) {
                         File(filesDir, "puppet_index.html").writeText(html)
+                        // Mise à jour de puppet1.js depuis GitHub si disponible, sinon copie depuis assets
+                        val puppet1Content = GitHubConfig.fetchPuppet1Js()
+                        if (puppet1Content != null) {
+                            File(filesDir, "puppet1.js").writeText(puppet1Content)
+                        } else {
+                            assets.open("puppet/puppet1.js")
+                                .use { it.copyTo(File(filesDir, "puppet1.js").outputStream()) }
+                        }
                     }
                     binding.webView.loadUrl("file://${File(filesDir, "puppet_index.html").absolutePath}")
-                    AppLogger.log("Puppet", "index.html mis à jour depuis GitHub")
+                    AppLogger.log("Puppet", "index.html + puppet1.js mis à jour depuis GitHub")
                 }
                 setStatus("Prêt.")
             } catch (e: Exception) {
@@ -147,8 +155,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val cached = File(filesDir, "puppet_index.html")
-        val puppetUrl = if (cached.exists()) "file://${cached.absolutePath}"
-                        else "file:///android_asset/puppet/index.html"
+        val puppetUrl = if (cached.exists()) {
+            // puppet1.js doit être dans le même dossier que puppet_index.html
+            val puppet1 = File(filesDir, "puppet1.js")
+            if (!puppet1.exists()) {
+                assets.open("puppet/puppet1.js").use { it.copyTo(puppet1.outputStream()) }
+            }
+            "file://${cached.absolutePath}"
+        } else {
+            "file:///android_asset/puppet/index.html"
+        }
         binding.webView.loadUrl(puppetUrl)
 
         // Rend la WebView carrée une fois sa largeur connue

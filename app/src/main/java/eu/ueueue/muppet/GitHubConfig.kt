@@ -47,6 +47,8 @@ object GitHubConfig {
         }
     }
 
+    fun fetchPuppet1Js(): String? = fetchFile("puppet/puppet1.js")
+
     private fun fetchFile(filename: String): String? {
         return try {
             val url = "https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$BRANCH/$filename"
