@@ -49,11 +49,6 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk muppet-debug.apk
           echo '{"versionCode":${{ github.run_number }}}' > version.json
 
-      - name: Delete existing latest tag
-        run: |
-          git push origin :refs/tags/latest || true
-          git tag -d latest || true
-
       - name: Update latest release
         uses: ncipollo/release-action@v1
         with:
