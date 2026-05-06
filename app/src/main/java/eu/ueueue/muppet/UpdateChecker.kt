@@ -40,10 +40,7 @@ object UpdateChecker {
                 return
             }
 
-            val apkUrl: String = fetchApkUrl() ?: run {
-                AppLogger.err("Update", "aucun APK dans la release")
-                return
-            }
+            val apkUrl: String = fetchApkUrl()
 
             AppLogger.log("Update", "nouvelle version build #$remoteVersion → $apkUrl")
 
