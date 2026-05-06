@@ -166,13 +166,21 @@ class MainActivity : AppCompatActivity() {
         binding.btnCopyForClaude.setOnClickListener {
             val stt = currentSttResult ?: return@setOnClickListener
             val content = buildString {
-                appendLine("SCRIPT:")
+                appendLine("=== ACTIONS DISPONIBLES ===")
+                appendLine(GitHubConfig.orchestratorDoc)
+                appendLine()
+                appendLine("=== CONTRAINTES PHYSIQUES ===")
+                appendLine(GitHubConfig.constraints)
+                appendLine()
+                appendLine("=== SCRIPT ===")
                 appendLine(currentScript)
                 appendLine()
-                appendLine("TIMESTAMPS MOT PAR MOT:")
+                appendLine("=== TIMESTAMPS MOT PAR MOT ===")
                 stt.words.forEach { appendLine("  ${it.start}s–${it.end}s : ${it.text}") }
                 appendLine()
                 appendLine("DURÉE TOTALE : ${stt.durationSeconds}s")
+                appendLine()
+                appendLine("Génère la timeline JSON. Réponds UNIQUEMENT avec le JSON, sans commentaire.")
             }
             val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             cm.setPrimaryClip(android.content.ClipData.newPlainText("claude_context", content))

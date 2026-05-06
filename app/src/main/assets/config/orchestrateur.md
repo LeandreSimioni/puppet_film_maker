@@ -30,11 +30,29 @@ Incline la tête sur son axe frontal (comme pencher la tête de côté).
 - Exemple : `{"t": 3.0, "action": "setRoll", "rad": 0.25}`
 - Usage : interrogation, attendrissement, incrédulité, écoute attentive.
 
+### setTilt(rad)
+Incline la tête sur l'axe latéral gauche/droite (différent de setRoll).
+- `rad` : en radians. Plage recommandée : -0.4 à 0.4.
+- Exemple : `{"t": 2.0, "action": "setTilt", "rad": 0.3}`
+- Usage : curiosité, doute, écoute penchée.
+
+### setSpin(rad)
+Tourne la tête sur son axe vertical de façon additive au regard.
+- `rad` : en radians. Plage recommandée : -0.5 à 0.5.
+- Exemple : `{"t": 5.0, "action": "setSpin", "rad": -0.3}`
+- Usage : profil partiel, regard oblique, évitement.
+
 ### moveX(x)
 Déplace le **personnage entier** latéralement.
 - `x` : -1.5 (gauche) à 1.5 (droite). 0 = centre.
 - Exemple : `{"t": 4.0, "action": "moveX", "x": -0.4}`
-- Usage : repositionnement pour la composition, reculer, se rapprocher.
+- Usage : repositionnement, entrer/sortir du cadre (x: ±2.0).
+
+### moveY(y)
+Déplace le **personnage entier** verticalement.
+- `y` : -1.5 (bas) à 1.5 (haut). 0 = centre.
+- Exemple : `{"t": 6.0, "action": "moveY", "y": -0.3}`
+- Usage : s'affaisser, se redresser, effet de recul.
 
 ---
 
