@@ -69,7 +69,7 @@ Il ne reviendra pas.
 
 ## Notes techniques
 
-- Clé API dans `assets/config/config.json` — ne jamais committer (voir .gitignore)
+- Clé API dans `assets/puppet/config.json` — ne jamais committer (voir .gitignore)
 - Résolution : 1080×1080 — si bug Android constaté en test, fallback 720×720 + scale FFmpegKit
 - Temps de traitement : 2 à 4 minutes pour 1 minute de vidéo — acceptable
 - `GitHubConfig` lit `actions-catalog.json` depuis GitHub raw API, expose `constraints`, `directorMemory`, `orchestratorRules`

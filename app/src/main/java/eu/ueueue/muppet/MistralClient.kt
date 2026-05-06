@@ -53,7 +53,7 @@ class MistralClient(private val context: Context) {
         val prefs = context.getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
         prefs.getString("mistral_api_key", null)?.takeIf { it.isNotBlank() }?.let { return it }
         return try {
-            context.assets.open("config/config.json").use {
+            context.assets.open("puppet/config.json").use {
                 gson.fromJson(it.reader(), JsonObject::class.java)
                     .get("mistral_api_key").asString.also { key ->
                         prefs.edit().putString("mistral_api_key", key).apply()

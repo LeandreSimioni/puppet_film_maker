@@ -254,7 +254,7 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
         if (prefs.getString("mistral_api_key", null).isNullOrBlank()) {
             try {
-                assets.open("config/config.json").use {
+                assets.open("puppet/config.json").use {
                     val key = com.google.gson.Gson()
                         .fromJson(it.reader(), com.google.gson.JsonObject::class.java)
                         .get("mistral_api_key")?.asString
