@@ -36,6 +36,27 @@ let state={
 };
 let timeline=[]; let isExporting=false;
 
+// Paramètres bouche — lus depuis actions-catalog.json, defaults = valeurs de référence
+let mouthCfg = {
+  lowerJaw:      0.65,
+  upperJaw:      0.45,
+  baseline:      0.35,
+  amplitude:     0.65,
+  globalScale:   0.7,
+  fadeDuration:  0.08,
+  fadeAmount:    0.25
+};
+fetch('actions-catalog.json').then(r=>r.json()).then(cat=>{
+  const m = cat.mouth || {};
+  if(m.lower_jaw_scale   !== undefined) mouthCfg.lowerJaw     = m.lower_jaw_scale;
+  if(m.upper_jaw_scale   !== undefined) mouthCfg.upperJaw     = m.upper_jaw_scale;
+  if(m.lip_sync_baseline !== undefined) mouthCfg.baseline     = m.lip_sync_baseline;
+  if(m.lip_sync_amplitude!== undefined) mouthCfg.amplitude    = m.lip_sync_amplitude;
+  if(m.global_scale      !== undefined) mouthCfg.globalScale  = m.global_scale;
+  if(m.fade_duration     !== undefined) mouthCfg.fadeDuration = m.fade_duration;
+  if(m.fade_amount       !== undefined) mouthCfg.fadeAmount   = m.fade_amount;
+}).catch(()=>{}); // fallback sur les defaults si fetch échoue
+
 function updatePuppet(){
   const { headGroup, upperJaw, lowerJaw,
           leftArmGroup, rightArmGroup, leftElbowGroup, rightElbowGroup,
@@ -50,8 +71,8 @@ function updatePuppet(){
     headGroup.rotation.x=-(state.gazeY-0.75)*0.35;
     headGroup.rotation.z=state.tiltZ;
   }
-  if(lowerJaw) lowerJaw.rotation.x=state.mouthOpen*0.65;
-  if(upperJaw) upperJaw.rotation.x=-state.mouthOpen*0.45;
+  if(lowerJaw) lowerJaw.rotation.x= state.mouthOpen*mouthCfg.lowerJaw;
+  if(upperJaw) upperJaw.rotation.x=-state.mouthOpen*mouthCfg.upperJaw;
 
   if(leftEyeSocket){
     leftEyeSocket.rotation.x=state.eyeY*0.5;
@@ -116,11 +137,12 @@ function computeLipSync(t, words){
   for(const w of words){
     if(t>=w.start&&t<=w.end){
       const p=(t-w.start)/Math.max(w.end-w.start,0.05);
-      return 0.35+0.65*Math.sin(p*Math.PI);
+      return mouthCfg.baseline + mouthCfg.amplitude*Math.sin(p*Math.PI);
     }
   }
   const prev=words.filter(w=>w.end<=t).pop();
-  if(prev&&t-prev.end<0.08) return(1-(t-prev.end)/0.08)*0.25;
+  if(prev&&t-prev.end<mouthCfg.fadeDuration)
+    return(1-(t-prev.end)/mouthCfg.fadeDuration)*mouthCfg.fadeAmount;
   return 0;
 }
 
@@ -189,7 +211,7 @@ function startRenderWithTimeline(tl, duration, words){
       if(!ev._done&&t>=ev.t){ applyAction(ev,t); ev._done=true; }
     }
     stepTweens(t);
-    state.mouthOpen=computeLipSync(t,words)*0.7;
+    state.mouthOpen=computeLipSync(t,words)*mouthCfg.globalScale;
     updatePuppet();
     renderer.render(scene,camera);
     if(typeof Android!=='undefined') Android.onFrame(captureFrame(t,words),frame);
