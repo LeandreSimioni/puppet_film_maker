@@ -50,19 +50,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val pickJingle = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri ?: return@registerForActivityResult
-        lifecycleScope.launch(Dispatchers.IO) {
-            val dest = File(filesDir, "jingle.mp3")
-            contentResolver.openInputStream(uri)!!.use { it.copyTo(dest.outputStream()) }
-            getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
-                .edit().putString("jingle_path", dest.absolutePath).apply()
-            withContext(Dispatchers.Main) {
-                setStatus("Jingle importé → ${dest.name} (${dest.length() / 1024}ko)")
-            }
-        }
-    }
-
     private val pickIntroCard = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri ?: return@registerForActivityResult
         lifecycleScope.launch(Dispatchers.IO) {
@@ -118,7 +105,6 @@ class MainActivity : AppCompatActivity() {
             setStatus("Chargement de la configuration...")
             try {
                 GitHubConfig.load(assets)
-                // Si GitHub a fourni une nouvelle version du puppet, on la sauvegarde et recharge
                 GitHubConfig.puppetHtml?.let { html ->
                     withContext(Dispatchers.IO) {
                         File(filesDir, "puppet_index.html").writeText(html)
@@ -160,33 +146,26 @@ class MainActivity : AppCompatActivity() {
                 if (bgPath != null && File(bgPath).exists()) injectBackground(bgPath)
             }
         }
-        // Priorité : version live depuis GitHub (filesDir), sinon asset embarqué
         val cached = File(filesDir, "puppet_index.html")
         val puppetUrl = if (cached.exists()) "file://${cached.absolutePath}"
                         else "file:///android_asset/puppet/index.html"
         binding.webView.loadUrl(puppetUrl)
+
+        // Rend la WebView carrée une fois sa largeur connue
+        binding.webView.post {
+            val lp = binding.webView.layoutParams
+            lp.height = binding.webView.width
+            binding.webView.layoutParams = lp
+        }
     }
 
     private fun setupButtons() {
 
-        binding.btnRedact.setOnClickListener {
-            val subject = binding.scriptInput.text.toString()
-            if (subject.isBlank()) return@setOnClickListener
-            lifecycleScope.launch {
-                try {
-                    setStatus("Rédaction du script...")
-                    val script = mistralClient.redact(subject)
-                    binding.scriptInput.setText(script)
-                    setStatus("Script généré — modifie-le si besoin, puis valide.")
-                } catch (e: Exception) {
-                    showError("Erreur rédaction", e)
-                }
-            }
-        }
-
         binding.btnValidate.setOnClickListener {
             currentScript = binding.scriptInput.text.toString()
             if (currentScript.isBlank()) return@setOnClickListener
+            getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+                .edit().putString("last_script", currentScript).apply()
             lifecycleScope.launch {
                 try {
                     runTtsAndStt()
@@ -212,22 +191,9 @@ class MainActivity : AppCompatActivity() {
             setStatus("Copié — colle dans Claude.ai et récupère le JSON de timeline.")
         }
 
-        binding.btnOrchestrate.setOnClickListener {
-            val stt = currentSttResult ?: return@setOnClickListener
-            lifecycleScope.launch {
-                try {
-                    setStatus("Orchestration Mistral...")
-                    val timeline = mistralClient.orchestrate(currentScript, stt)
-                    applyAndShowTimeline(timeline)
-                } catch (e: Exception) {
-                    showError("Erreur orchestration", e)
-                }
-            }
-        }
-
         binding.btnRender.setOnClickListener {
             if (currentSttResult == null || currentAudioPath == null) {
-                showError("Aucun audio disponible — lance d'abord le TTS (bouton \"Valider → TTS + STT\")")
+                showError("Aucun audio disponible — lance d'abord \"Créer son\"")
                 return@setOnClickListener
             }
             val timelineJson = binding.timelineInput.text.toString().trim()
@@ -246,34 +212,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.btnRefine.setOnClickListener {
-            val request = binding.refineInput.text.toString()
-            val timeline = currentTimeline ?: return@setOnClickListener
-            val stt = currentSttResult ?: return@setOnClickListener
-            if (request.isBlank()) return@setOnClickListener
-            lifecycleScope.launch {
-                try {
-                    setStatus("Correction de la timeline...")
-                    val newTimeline = mistralClient.refineOrchestration(timeline, request, stt)
-                    currentTimeline = newTimeline
-                    binding.timelineInput.setText(gson.toJson(newTimeline))
-                    setStatus("Timeline corrigée — vérifie le JSON, puis relance le rendu.")
-                } catch (e: Exception) {
-                    showError("Erreur correction", e)
-                }
-            }
-        }
-
-        binding.btnTestExport.setOnClickListener {
-            AppLogger.log("UI", "btnTestExport cliqué")
-            setStatus("Test export 5s — démarrage rendu JS...")
-            binding.webView.evaluateJavascript("startRender(150, 30)") { result ->
-                AppLogger.log("WebView", "startRender retour JS : $result")
-            }
-        }
-
         binding.btnBackground.setOnClickListener { pickBackground.launch("image/*") }
-        binding.btnImportJingle.setOnClickListener { pickJingle.launch("audio/*") }
         binding.btnImportIntroCard.setOnClickListener { pickIntroCard.launch("video/*") }
         binding.btnImportOutroCard.setOnClickListener { pickOutroCard.launch("video/*") }
 
@@ -286,7 +225,6 @@ class MainActivity : AppCompatActivity() {
         refreshAutoUpdateLabel()
 
         binding.btnLogs.setOnClickListener { showLogsDialog() }
-
         binding.btnApiKey.setOnClickListener { promptApiKey() }
     }
 
@@ -371,7 +309,6 @@ class MainActivity : AppCompatActivity() {
         setStatus("Synthèse vocale...")
         val ttsPath = mistralClient.tts(extractTextOnly(currentScript))
 
-        // Copie vers emplacement permanent dès la réception de l'audio
         withContext(Dispatchers.IO) {
             File(ttsPath).copyTo(File(filesDir, "last_audio.mp3"), overwrite = true)
         }
@@ -384,18 +321,22 @@ class MainActivity : AppCompatActivity() {
             File(filesDir, "last_stt.json").writeText(plainGson.toJson(currentSttResult))
         }
 
-        setStatus("Prêt — copie pour Claude ou orchestre avec Mistral.")
-        showPostAudioUI()
-    }
-
-    private fun showPostAudioUI() {
+        setStatus("Son créé — copie pour Claude puis colle la timeline.")
         binding.btnCopyForClaude.isEnabled = true
-        binding.btnOrchestrate.isEnabled = true
+        binding.btnRender.isEnabled = true
     }
 
     private suspend fun restoreLastSession() {
         val audioFile = File(filesDir, "last_audio.mp3")
         val sttFile = File(filesDir, "last_stt.json")
+
+        // Restaure le texte du script
+        val savedScript = getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
+            .getString("last_script", null)
+        if (!savedScript.isNullOrBlank()) {
+            binding.scriptInput.setText(savedScript)
+        }
+
         if (!audioFile.exists() || !sttFile.exists()) return
         try {
             val stt = withContext(Dispatchers.IO) {
@@ -403,10 +344,10 @@ class MainActivity : AppCompatActivity() {
             }
             currentAudioPath = audioFile.absolutePath
             currentSttResult = stt
-            showPostAudioUI()
+            binding.btnCopyForClaude.isEnabled = true
             binding.btnRender.isEnabled = true
             val dur = stt.durationSeconds.toInt()
-            setStatus("Son précédent restauré (${dur}s). Colle un JSON ou orchestre.")
+            setStatus("Son précédent restauré (${dur}s). Colle un JSON ou crée un nouveau son.")
             AppLogger.log("Restore", "Session restaurée — ${audioFile.length() / 1024}ko, ${stt.words.size} mots")
         } catch (e: Exception) {
             AppLogger.err("Restore", "Erreur restauration session", e)
@@ -441,7 +382,6 @@ class MainActivity : AppCompatActivity() {
         currentTimeline = finalTimeline
         binding.timelineInput.setText(gson.toJson(finalTimeline))
         binding.btnRender.isEnabled = true
-        binding.btnRefine.isEnabled = true
         setStatus("Timeline prête — lance le rendu.")
     }
 
