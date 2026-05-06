@@ -41,12 +41,10 @@ Un tableau JSON d'actions, trié par `t` (secondes depuis le début de l'audio o
 
 ```json
 [
-  {"t": 0.0,  "action": "setGaze",        "gx": 0,   "gy": -0.6},
-  {"t": 0.0,  "action": "setEmotion",     "e": "Sad"},
-  {"t": 1.90, "action": "insertSilence",  "duration": 2.0},
-  {"t": 3.90, "action": "setEmotion",     "e": "Angry"},
-  {"t": 3.90, "action": "setGaze",        "gx": 0.2, "gy": 0},
-  {"t": 0.0,  "action": "playJingle",     "volume": 0.6}
+  {"t": 0.0,  "action": "setGaze",       "gx": 0,   "gy": -0.6, "duration": 0.4},
+  {"t": 1.90, "action": "insertSilence", "duration": 2.0},
+  {"t": 3.90, "action": "setGaze",       "gx": 0.2, "gy": 0,    "duration": 0.5},
+  {"t": 0.0,  "action": "playJingle",   "volume": 0.6}
 ]
 ```
 
@@ -54,14 +52,27 @@ Un tableau JSON d'actions, trié par `t` (secondes depuis le début de l'audio o
 
 ## Actions disponibles
 
-### Animation puppet
+### Animation puppet — Tête
 
 | Action | Paramètres | Description |
 |--------|-----------|-------------|
-| `setGaze` | `gx` (-1..1), `gy` (-1..1) | Direction du regard. gx=0 gy=0 = face caméra. gx=-1 = regard gauche, gy=-0.8 = regard bas. |
-| `setRoll` | `rad` (radians) | Inclinaison de la tête. 0.2 = légèrement penché droite. |
-| `setEmotion` | `e` | Expression du visage. Valeurs : `Neutral` `Sad` `Happy` `Excited` `Curious` `Angry` |
-| `moveX` | `x` (-1..1) | Déplacement latéral du puppet. 0 = centré. |
+| `setGaze` | `gx` (-1..1), `gy` (-1..1) | Pivote la tête entière. gx=0 gy=0 = face caméra. gx=-1 = gauche, gy=-1 = bas. |
+| `setEye` | `ex` (-1..1), `ey` (-1..1) | Déplace les pupilles seules. Micro-expressions : hésitation, furtivité, surprise. |
+| `setRoll` | `rad` (-0.35..0.35) | Incline la tête de côté. 0.2 = légèrement penché droite. |
+| `setTilt` | `rad` (-0.4..0.4) | Incline la tête latéralement (axe différent de setRoll). |
+| `setSpin` | `rad` (-0.5..0.5) | Rotation verticale absolue de la tête. |
+| `spin360` | `direction` ("left"/"right") | Tour complet de la tête (effet cartoon). Utiliser duration 0.5–1.0. |
+| `crossEyes` | `amount` (0..1) | Loucher. amount=0 pour revenir normal. |
+| `rollEyesUp` | — | Lève les pupilles vers le haut (lever les yeux au ciel). Suivre d'un setEye ey=0. |
+
+### Animation puppet — Corps & Bras
+
+| Action | Paramètres | Description |
+|--------|-----------|-------------|
+| `moveX` | `x` (-1.5..1.5) | Déplacement latéral du puppet. 0 = centré. ±2.0 pour sortir du cadre. |
+| `moveY` | `y` (-1.5..1.5) | Déplacement vertical. Négatif = s'affaisser, positif = se redresser. |
+| `setArm` | `side`, `shoulder` (0..1.2), `elbow` (0..1.0) | Contrôle un bras. 0 = pendant, 1 = levé. Utiliser au moins 2–3 fois par vidéo. |
+| `pointForward` | `side` ("left"/"right") | Pointe vers le spectateur (bras tendu vers l'avant). |
 
 **Le lip sync (bouche) est automatique** — calculé frame par frame depuis les timestamps STT. Ne génère jamais d'action pour la bouche.
 
@@ -102,7 +113,7 @@ Un tableau JSON d'actions, trié par `t` (secondes depuis le début de l'audio o
 - **Ne rien faire** pendant un intervalle = puppet figé dans son dernier état. C'est expressif et intentionnel.
 - **Les silences sont des outils dramatiques** — une pause de 1.5s après une réplique choc vaut mieux que d'enchaîner.
 - **Le regard précède la parole** — pose le regard 0.2–0.3s avant le début du mot important.
-- **Les émotions perdurent** — ne change l'émotion que si le texte le justifie vraiment.
+- **Les gestes perdurent** — un bras levé reste levé jusqu'à ce que tu le ramènes. Pense à revenir à 0 après chaque geste fort.
 - **Moins c'est plus** — 8–12 actions pour 30 secondes est souvent suffisant. Évite le surjeu.
 
 ---
@@ -114,7 +125,7 @@ Le puppet ne peut PAS :
 - Tenir ou saisir des objets
 - Faire des gestes avec les mains ou le corps
 
-Il peut uniquement : tourner/incliner la tête, diriger le regard, changer l'émotion faciale, se déplacer légèrement sur l'axe X.
+Il peut uniquement : tourner/incliner la tête, diriger le regard, bouger les yeux, lever les bras, se déplacer sur les axes X et Y.
 
 ---
 
@@ -126,7 +137,7 @@ SCRIPT :
 [Regard caméra]
 Bienvenue sur Puppet News.
 [Pause 1s]
-[Excited]
+[Geste bras droit expressif]
 Ce soir, tout change.
 
 TIMESTAMPS :
@@ -146,11 +157,11 @@ DURÉE TOTALE : 3.10s
 ```json
 [
   {"t": 0.0,  "action": "playJingle",    "volume": 0.5},
-  {"t": 0.0,  "action": "setGaze",       "gx": 0,   "gy": 0},
-  {"t": 0.0,  "action": "setEmotion",    "e": "Neutral"},
+  {"t": 0.0,  "action": "setGaze",       "gx": 0,   "gy": 0,   "duration": 0.4},
   {"t": 1.70, "action": "insertSilence", "duration": 1.0},
-  {"t": 2.70, "action": "setEmotion",    "e": "Excited"},
-  {"t": 2.70, "action": "setGaze",       "gx": 0.1, "gy": 0.1}
+  {"t": 2.70, "action": "setArm",        "side": "right", "shoulder": 0.8, "elbow": 0.4, "duration": 0.4},
+  {"t": 2.70, "action": "setGaze",       "gx": 0.1, "gy": 0.1, "duration": 0.4},
+  {"t": 4.50, "action": "setArm",        "side": "right", "shoulder": 0.0, "elbow": 0.0, "duration": 0.5}
 ]
 ```
 

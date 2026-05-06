@@ -42,6 +42,26 @@ Tourne la tête sur son axe vertical de façon additive au regard.
 - Exemple : `{"t": 5.0, "action": "setSpin", "rad": -0.3}`
 - Usage : profil partiel, regard oblique, évitement.
 
+### spin360(direction)
+Tour complet de la tête (360°), relatif à la position actuelle.
+- `direction` : `"left"` ou `"right"`.
+- Utiliser `duration` de 0.5 à 1.0 pour que le mouvement soit lisible.
+- Exemple : `{"t": 1.0, "action": "spin360", "direction": "right", "duration": 0.6}`
+- Usage : effet cartoon, surprise extrême.
+
+### crossEyes(amount)
+Fait loucher les yeux.
+- `amount` : 0 = normal, 0.6 = louche bien visible.
+- Toujours prévoir un retour à 0 : `{"action": "crossEyes", "amount": 0}`.
+- Exemple : `{"t": 1.0, "action": "crossEyes", "amount": 0.6, "duration": 0.4}`
+- Usage : effet comique, confusion, vertige.
+
+### rollEyesUp()
+Lève les pupilles vers le haut (lever les yeux au ciel).
+- Pas de paramètre. Toujours suivre d'un `setEye ey=0` pour revenir.
+- Exemple : `{"t": 2.0, "action": "rollEyesUp", "duration": 0.8}`
+- Usage : exaspération, incrédulité, ennui.
+
 ### moveX(x)
 Déplace le **personnage entier** latéralement.
 - `x` : -1.5 (gauche) à 1.5 (droite). 0 = centre.
@@ -95,6 +115,17 @@ Retour au repos :
 ```
 
 **Règle** : ne jamais laisser les bras immobiles pendant toute la vidéo. Même un léger geste (shoulder 0.15, elbow 0.1) à mi-discours suffit à donner vie au personnage.
+
+### pointForward(side)
+Pointe vers le spectateur — bras tendu vers l'avant (épaule haute, coude presque tendu).
+- `side` : `"left"` ou `"right"`.
+- Toujours prévoir un retour : `setArm shoulder=0 elbow=0` environ 2s après.
+- Exemple :
+```json
+{"t": 1.5, "action": "pointForward", "side": "right", "duration": 0.4},
+{"t": 3.5, "action": "setArm", "side": "right", "shoulder": 0.0, "elbow": 0.0, "duration": 0.6}
+```
+- Usage : accusation, désignation directe, effet dramatique.
 
 ---
 

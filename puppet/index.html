@@ -31,7 +31,7 @@ const root=new THREE.Group(); scene.add(root);
 let parts={};
 let state={
   mouthOpen:0, gazeX:0, gazeY:0, roll:0, posX:0, posY:0, tiltZ:0, spinY:0,
-  eyeX:0, eyeY:0,
+  eyeX:0, eyeY:0, crossEye:0,
   leftShoulder:0, leftElbow:0, rightShoulder:0, rightElbow:0
 };
 let timeline=[]; let isExporting=false;
@@ -55,11 +55,11 @@ function updatePuppet(){
 
   if(leftEyeSocket){
     leftEyeSocket.rotation.x=state.eyeY*0.5;
-    leftEyeSocket.rotation.y=-state.eyeX*0.5;
+    leftEyeSocket.rotation.y=(-state.eyeX*0.5)+(state.crossEye||0);
   }
   if(rightEyeSocket){
     rightEyeSocket.rotation.x=state.eyeY*0.5;
-    rightEyeSocket.rotation.y=-state.eyeX*0.5;
+    rightEyeSocket.rotation.y=(-state.eyeX*0.5)-(state.crossEye||0);
   }
   if(leftArmGroup){
     leftArmGroup.rotation.x=-state.leftShoulder*1.1;
@@ -198,33 +198,6 @@ function startRenderWithTimeline(tl, duration, words){
   next();
 }
 
-function applyAction(ev, currentT){
-  const dur = ev.duration ?? 0.25;
-  switch(ev.action){
-    case 'setGaze':
-      addTween('gazeX', ev.gx??0, currentT, dur);
-      addTween('gazeY', ev.gy??0, currentT, dur);
-      break;
-    case 'setRoll':  addTween('roll',  ev.rad??0, currentT, dur); break;
-    case 'setTilt':  addTween('tiltZ', ev.rad??0, currentT, dur); break;
-    case 'setSpin':  addTween('spinY', ev.rad??0, currentT, dur); break;
-    case 'setEye':
-      addTween('eyeX', ev.ex??0, currentT, dur);
-      addTween('eyeY', ev.ey??0, currentT, dur);
-      break;
-    case 'moveX':   addTween('posX', ev.x??0, currentT, dur); break;
-    case 'moveY':   addTween('posY', ev.y??0, currentT, dur); break;
-    case 'setArm': {
-      const prefix = ev.side==='left' ? 'left' : 'right';
-      if(ev.shoulder!==undefined) addTween(prefix+'Shoulder', ev.shoulder, currentT, dur);
-      if(ev.elbow!==undefined)    addTween(prefix+'Elbow',    ev.elbow,    currentT, dur);
-      break;
-    }
-    case 'setMouth': state.mouthOpen = ev.amount??0; break;
-    default: break;
-  }
-}
-
 function setBackgroundUrl(url){
   new THREE.TextureLoader().load(url, function(tex){
     tex.colorSpace=THREE.SRGBColorSpace;
@@ -238,5 +211,6 @@ window.setMouthOpen=(v)=>{ state.mouthOpen=v; };
 window.setBackgroundUrl=setBackgroundUrl;
 window.loadPuppet=loadPuppet;
 </script>
+<script src="actions.js"></script>
 </body>
 </html>

@@ -1,0 +1,262 @@
+{
+  "_doc": "Catalogue de tous les mouvements disponibles. Source de vérité pour l'orchestrateur et le développement. Toute nouvelle action doit être ajoutée ici ET dans actions.js.",
+
+  "actions": [
+
+    {
+      "action": "setGaze",
+      "category": "tête",
+      "params": {
+        "gx": "float -1..1  (gauche=-1, centre=0, droite=1)",
+        "gy": "float -1..1  (bas=-1, centre=0, haut=1)",
+        "duration": "float (optionnel, défaut 0.25s)"
+      },
+      "description": "Pivote la tête entière dans une direction. gx=0 gy=0 = face caméra. Les yeux suivent.",
+      "usage": "Regarder quelque chose, fuir la caméra, observer. Varier toutes les 2–4s.",
+      "examples": [
+        {"t": 0.0, "action": "setGaze", "gx": 0,    "gy": 0,    "duration": 0.4},
+        {"t": 1.0, "action": "setGaze", "gx": 0.6,  "gy": -0.2, "duration": 0.5},
+        {"t": 3.0, "action": "setGaze", "gx": -0.8, "gy": 0.1,  "duration": 0.4}
+      ]
+    },
+
+    {
+      "action": "setEye",
+      "category": "yeux",
+      "params": {
+        "ex": "float -1..1  (droite=-1, centre=0, gauche=1)",
+        "ey": "float -1..1  (bas=-1, centre=0, haut=1)",
+        "duration": "float (optionnel, défaut 0.25s)"
+      },
+      "description": "Déplace les pupilles indépendamment de la tête. Crée des micro-expressions.",
+      "usage": "Hésitation, furtivité, surprise intérieure. Combiner avec setGaze pour plus de vie.",
+      "examples": [
+        {"t": 2.5, "action": "setEye", "ex": -0.5, "ey": 0.3,  "duration": 0.2},
+        {"t": 4.0, "action": "setEye", "ex": 0,    "ey": 0,    "duration": 0.3}
+      ]
+    },
+
+    {
+      "action": "crossEyes",
+      "category": "yeux",
+      "params": {
+        "amount": "float 0..1  (0=normal, 0.6=louche bien visible)",
+        "duration": "float (optionnel, défaut 0.25s)"
+      },
+      "description": "Fait loucher les yeux. Remettre à 0 pour revenir à la normale.",
+      "usage": "Effet comique, confusion, vertige.",
+      "examples": [
+        {"t": 1.0, "action": "crossEyes", "amount": 0.6, "duration": 0.4},
+        {"t": 3.0, "action": "crossEyes", "amount": 0,   "duration": 0.3}
+      ]
+    },
+
+    {
+      "action": "rollEyesUp",
+      "category": "yeux",
+      "params": {
+        "duration": "float (optionnel, défaut 0.25s)"
+      },
+      "description": "Lève les pupilles vers le haut (lever les yeux au ciel). Remettre avec setEye ey=0.",
+      "usage": "Exaspération, incrédulité, ennui.",
+      "examples": [
+        {"t": 2.0, "action": "rollEyesUp", "duration": 0.8},
+        {"t": 3.5, "action": "setEye", "ex": 0, "ey": 0, "duration": 0.4}
+      ]
+    },
+
+    {
+      "action": "setRoll",
+      "category": "tête",
+      "params": {
+        "rad": "float -0.35..0.35  (positif=penche droite depuis la caméra)",
+        "duration": "float (optionnel, défaut 0.25s)"
+      },
+      "description": "Incline la tête sur l'axe frontal, comme pencher la tête de côté.",
+      "usage": "Interrogation, attendrissement, incrédulité, écoute attentive.",
+      "examples": [
+        {"t": 1.5, "action": "setRoll", "rad": 0.25,  "duration": 0.5},
+        {"t": 4.0, "action": "setRoll", "rad": 0,     "duration": 0.4}
+      ]
+    },
+
+    {
+      "action": "setTilt",
+      "category": "tête",
+      "params": {
+        "rad": "float -0.4..0.4",
+        "duration": "float (optionnel, défaut 0.25s)"
+      },
+      "description": "Incline la tête sur l'axe latéral gauche/droite (différent de setRoll).",
+      "usage": "Curiosité, doute, écoute penchée.",
+      "examples": [
+        {"t": 2.0, "action": "setTilt", "rad": 0.3, "duration": 0.4},
+        {"t": 4.5, "action": "setTilt", "rad": 0,   "duration": 0.4}
+      ]
+    },
+
+    {
+      "action": "setSpin",
+      "category": "tête",
+      "params": {
+        "rad": "float -0.5..0.5  (valeur absolue en radians)",
+        "duration": "float (optionnel, défaut 0.25s)"
+      },
+      "description": "Rotation verticale absolue de la tête, s'additionne au regard.",
+      "usage": "Profil partiel, regard oblique, évitement.",
+      "examples": [
+        {"t": 3.0, "action": "setSpin", "rad": -0.3, "duration": 0.5},
+        {"t": 6.0, "action": "setSpin", "rad": 0,    "duration": 0.4}
+      ]
+    },
+
+    {
+      "action": "spin360",
+      "category": "tête",
+      "params": {
+        "direction": "\"left\" ou \"right\"",
+        "duration": "float (optionnel, défaut 0.25s — mettre 0.5–1.0 pour que ça soit lisible)"
+      },
+      "description": "Tour complet de la tête (360°). Relatif : tourne depuis la position actuelle.",
+      "usage": "Effet comique, surprise extrême, style cartoon.",
+      "examples": [
+        {"t": 1.0, "action": "spin360", "direction": "right", "duration": 0.6}
+      ]
+    },
+
+    {
+      "action": "moveX",
+      "category": "corps",
+      "params": {
+        "x": "float -1.5..1.5  (gauche négatif, centre=0, droite positif)",
+        "duration": "float (optionnel, défaut 0.25s)"
+      },
+      "description": "Déplace le personnage entier latéralement. ±2.0 pour sortir du cadre.",
+      "usage": "Repositionnement, entrer/sortir de scène.",
+      "examples": [
+        {"t": 2.0, "action": "moveX", "x": -0.4, "duration": 0.6},
+        {"t": 5.0, "action": "moveX", "x": 0,    "duration": 0.5}
+      ]
+    },
+
+    {
+      "action": "moveY",
+      "category": "corps",
+      "params": {
+        "y": "float -1.5..1.5  (bas négatif, centre=0, haut positif)",
+        "duration": "float (optionnel, défaut 0.25s)"
+      },
+      "description": "Déplace le personnage entier verticalement.",
+      "usage": "S'affaisser, se redresser, effet de recul.",
+      "examples": [
+        {"t": 3.0, "action": "moveY", "y": -0.3, "duration": 0.5},
+        {"t": 6.0, "action": "moveY", "y": 0,    "duration": 0.4}
+      ]
+    },
+
+    {
+      "action": "setArm",
+      "category": "bras",
+      "params": {
+        "side": "\"left\" ou \"right\"",
+        "shoulder": "float 0..1.2  (0=pendant, 1=levé ~60°)",
+        "elbow": "float 0..1.0  (0=bras tendu, 1=coude plié 90°)",
+        "duration": "float (optionnel, défaut 0.25s)"
+      },
+      "description": "Contrôle un bras. Shoulder et elbow sont optionnels (on peut n'en changer qu'un).",
+      "usage": "Gestes expressifs, pointer, hausser les épaules. Utiliser au moins 2–3 fois par vidéo.",
+      "examples": [
+        {"t": 2.0, "action": "setArm", "side": "right", "shoulder": 1.0, "elbow": 0.1, "duration": 0.4},
+        {"t": 4.0, "action": "setArm", "side": "right", "shoulder": 0,   "elbow": 0,   "duration": 0.5}
+      ]
+    },
+
+    {
+      "action": "pointForward",
+      "category": "bras",
+      "params": {
+        "side": "\"left\" ou \"right\"",
+        "duration": "float (optionnel, défaut 0.25s)"
+      },
+      "description": "Pointe directement vers le spectateur (bras tendu vers l'avant).",
+      "usage": "Accusation, désignation directe, effet dramatique.",
+      "examples": [
+        {"t": 1.5, "action": "pointForward", "side": "right", "duration": 0.4},
+        {"t": 3.5, "action": "setArm",       "side": "right", "shoulder": 0, "elbow": 0, "duration": 0.6}
+      ]
+    },
+
+    {
+      "action": "insertSilence",
+      "category": "audio",
+      "params": {
+        "duration": "float (secondes de silence à insérer)"
+      },
+      "description": "Coupe l'audio au point t et insère un silence. Tous les timestamps suivants sont décalés automatiquement. Traité côté Kotlin, pas dans le moteur JS.",
+      "usage": "Pauses dramatiques, respirations, tension. Ne pas doubler les silences naturels du TTS.",
+      "note": "Calculer le gap naturel entre deux mots. Insérer uniquement si le gap est insuffisant. Placer t au centre du gap existant.",
+      "examples": [
+        {"t": 3.5, "action": "insertSilence", "duration": 0.8}
+      ]
+    }
+
+  ],
+
+  "recettes": {
+    "_doc": "Séquences prêtes à l'emploi. Copier-coller dans une timeline en ajustant les t.",
+
+    "regarder_camera": [
+      {"t": 0.0, "action": "setGaze", "gx": 0, "gy": 0, "duration": 0.4}
+    ],
+
+    "pointer_spectateur_droite": [
+      {"t": 0.0, "action": "setGaze",       "gx": 0,  "gy": 0, "duration": 0.3},
+      {"t": 0.5, "action": "pointForward",  "side": "right",    "duration": 0.4},
+      {"t": 2.5, "action": "setArm",        "side": "right", "shoulder": 0, "elbow": 0, "duration": 0.6}
+    ],
+
+    "tour_tete_complet": [
+      {"t": 0.0, "action": "setGaze",  "gx": 0, "gy": 0},
+      {"t": 0.5, "action": "spin360",  "direction": "right", "duration": 0.5}
+    ],
+
+    "loucher_puis_normal": [
+      {"t": 0.0, "action": "setGaze",    "gx": 0, "gy": 0},
+      {"t": 0.5, "action": "crossEyes",  "amount": 0.6, "duration": 0.4},
+      {"t": 2.5, "action": "crossEyes",  "amount": 0,   "duration": 0.3}
+    ],
+
+    "lever_yeux_au_ciel": [
+      {"t": 0.0, "action": "setGaze",    "gx": 0, "gy": 0},
+      {"t": 0.0, "action": "setEye",     "ex": 0, "ey": 0},
+      {"t": 0.5, "action": "rollEyesUp", "duration": 0.8},
+      {"t": 2.5, "action": "setEye",     "ex": 0, "ey": 0, "duration": 0.4}
+    ],
+
+    "hausser_epaules": [
+      {"t": 0.0, "action": "setArm", "side": "left",  "shoulder": 0.5, "elbow": 0.0, "duration": 0.3},
+      {"t": 0.0, "action": "setArm", "side": "right", "shoulder": 0.5, "elbow": 0.0, "duration": 0.3},
+      {"t": 0.8, "action": "setArm", "side": "left",  "shoulder": 0.0, "elbow": 0.0, "duration": 0.5},
+      {"t": 0.8, "action": "setArm", "side": "right", "shoulder": 0.0, "elbow": 0.0, "duration": 0.5}
+    ],
+
+    "geste_expressif_deux_bras": [
+      {"t": 0.0, "action": "setArm", "side": "left",  "shoulder": 0.7, "elbow": 0.5, "duration": 0.4},
+      {"t": 0.0, "action": "setArm", "side": "right", "shoulder": 0.6, "elbow": 0.4, "duration": 0.4},
+      {"t": 2.0, "action": "setArm", "side": "left",  "shoulder": 0.0, "elbow": 0.0, "duration": 0.5},
+      {"t": 2.0, "action": "setArm", "side": "right", "shoulder": 0.0, "elbow": 0.0, "duration": 0.5}
+    ],
+
+    "retour_neutre_complet": [
+      {"t": 0.0, "action": "setGaze", "gx": 0, "gy": 0,   "duration": 0.4},
+      {"t": 0.0, "action": "setEye",  "ex": 0, "ey": 0,   "duration": 0.4},
+      {"t": 0.0, "action": "setRoll", "rad": 0,            "duration": 0.4},
+      {"t": 0.0, "action": "setTilt", "rad": 0,            "duration": 0.4},
+      {"t": 0.0, "action": "setSpin", "rad": 0,            "duration": 0.4},
+      {"t": 0.0, "action": "moveX",   "x": 0,              "duration": 0.5},
+      {"t": 0.0, "action": "moveY",   "y": 0,              "duration": 0.5},
+      {"t": 0.0, "action": "setArm",  "side": "left",  "shoulder": 0, "elbow": 0, "duration": 0.5},
+      {"t": 0.0, "action": "setArm",  "side": "right", "shoulder": 0, "elbow": 0, "duration": 0.5}
+    ]
+  }
+}
