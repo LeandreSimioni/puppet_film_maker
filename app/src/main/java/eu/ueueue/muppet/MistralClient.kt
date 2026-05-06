@@ -146,7 +146,8 @@ class MistralClient(private val context: Context) {
     private suspend fun resolveMarieVoiceId(): String {
         cachedMarieVoiceId?.let { return it }
         val voices = listVoices()
-        val marie = voices.firstOrNull { it.name.startsWith("marie", ignoreCase = true) }
+        val marie = voices.firstOrNull { it.name.equals("marie - Excited", ignoreCase = true) }
+            ?: voices.firstOrNull { it.name.startsWith("marie", ignoreCase = true) }
             ?: throw RuntimeException("Voix 'Marie' introuvable — vérifiez votre compte Mistral.")
         cachedMarieVoiceId = marie.id
         AppLogger.log("Voices", "Marie sélectionnée : ${marie.name} (${marie.id})")
