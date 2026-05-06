@@ -27,6 +27,11 @@ function applyAction(ev, currentT) {
       addTween('tiltZ', ev.rad ?? 0, currentT, dur);
       break;
 
+    case 'setPitch':
+      // Incline la tête d'avant en arrière (hochements).
+      addTween('pitchX', ev.rad ?? 0, currentT, dur);
+      break;
+
     case 'setSpin':
       // Rotation verticale absolue de la tête (valeur en radians).
       addTween('spinY', ev.rad ?? 0, currentT, dur);
@@ -73,10 +78,16 @@ function applyAction(ev, currentT) {
 
     case 'setArm': {
       // Contrôle un bras. side: "left" ou "right".
-      // shoulder: 0=pendant, 1=levé ~60°. elbow: 0=tendu, 1=plié 90°.
       const prefix = ev.side === 'left' ? 'left' : 'right';
-      if (ev.shoulder !== undefined) addTween(prefix + 'Shoulder', ev.shoulder, currentT, dur);
-      if (ev.elbow   !== undefined)  addTween(prefix + 'Elbow',    ev.elbow,    currentT, dur);
+      
+      if (ev.shoulder !== undefined) {
+          addTween(prefix + 'Shoulder', ev.shoulder, currentT, dur);
+      }
+      
+      // BLOCAGE DU COUDE ICI : On force l'animation du coude à 0
+      // peu importe ce que le script demande.
+      addTween(prefix + 'Elbow', 0, currentT, dur);
+      
       break;
     }
 
@@ -84,15 +95,14 @@ function applyAction(ev, currentT) {
       // Pointe vers l'avant (vers le spectateur). side: "left" ou "right".
       const prefix = ev.side === 'left' ? 'left' : 'right';
       addTween(prefix + 'Shoulder', 1.8, currentT, dur);
-      addTween(prefix + 'Elbow', 0.05, currentT, dur);
+      addTween(prefix + 'Elbow', 0, currentT, dur); // Coude bloqué à 0 aussi ici
       break;
     }
 
     // ── BOUCHE ────────────────────────────────────────────────
 
     case 'setMouth':
-      // Contrôle direct de la bouche. Usage interne uniquement — le lip sync
-      // est automatique via computeLipSync() et écrase cette valeur.
+      // Contrôle direct de la bouche. Usage interne uniquement.
       state.mouthOpen = ev.amount ?? 0;
       break;
 
