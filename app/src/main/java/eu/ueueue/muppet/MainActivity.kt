@@ -126,6 +126,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupWebView() {
         binding.webView.settings.apply {
             javaScriptEnabled = true
+            useWideViewPort = true
+            loadWithOverviewMode = true
         }
         puppetBridge = PuppetBridge(this, videoExporter)
         binding.webView.addJavascriptInterface(puppetBridge, "Android")
