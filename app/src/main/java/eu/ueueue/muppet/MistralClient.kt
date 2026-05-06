@@ -18,6 +18,7 @@ import android.util.Base64
 data class WordTimestamp(val text: String, val start: Double, val end: Double)
 data class SttResult(val words: List<WordTimestamp>, val durationSeconds: Double)
 data class VoiceItem(val id: String, val name: String)
+data class VoiceConfig(val name: String, val emotion: String, val ttsModel: String, val sttModel: String)
 
 class MistralClient(private val context: Context) {
 
@@ -28,7 +29,25 @@ class MistralClient(private val context: Context) {
         .readTimeout(120, TimeUnit.SECONDS)
         .build()
 
-    private var cachedMarieVoiceId: String? = null
+    private var cachedVoiceId: String? = null
+    private val voiceConfig: VoiceConfig by lazy { loadVoiceConfig() }
+
+    private fun loadVoiceConfig(): VoiceConfig {
+        return try {
+            val json = context.assets.open("puppet/actions-catalog.json").use {
+                gson.fromJson(it.reader(), JsonObject::class.java)
+            }
+            val v = json.getAsJsonObject("voice")
+            VoiceConfig(
+                name      = v.get("name").asString,
+                emotion   = v.get("emotion").asString,
+                ttsModel  = v.get("tts_model").asString,
+                sttModel  = v.get("stt_model").asString
+            )
+        } catch (e: Exception) {
+            VoiceConfig("marie", "Excited", "voxtral-mini-tts-2603", "voxtral-mini-latest")
+        }
+    }
 
     private fun loadApiKey(): String {
         val prefs = context.getSharedPreferences("muppet_prefs", Context.MODE_PRIVATE)
@@ -47,11 +66,11 @@ class MistralClient(private val context: Context) {
 
     // TTS — texte brut → audio MP3
     suspend fun tts(text: String): String = withContext(Dispatchers.IO) {
-        val marieId = resolveMarieVoiceId()
+        val voiceId = resolveVoiceId()
         val body = JsonObject().apply {
-            addProperty("model", "voxtral-mini-tts-2603")
+            addProperty("model", voiceConfig.ttsModel)
             addProperty("input", text)
-            addProperty("voice_id", marieId)
+            addProperty("voice_id", voiceId)
             addProperty("response_format", "mp3")
         }
         AppLogger.log("TTS", "request body: $body")
@@ -83,7 +102,7 @@ class MistralClient(private val context: Context) {
         val multipart = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("file", audioFile.name, audioFile.asRequestBody("audio/mpeg".toMediaType()))
-            .addFormDataPart("model", "voxtral-mini-latest")
+            .addFormDataPart("model", voiceConfig.sttModel)
             .addFormDataPart("timestamp_granularities[]", "word")
             .build()
         val request = Request.Builder()
@@ -143,14 +162,15 @@ class MistralClient(private val context: Context) {
         voices
     }
 
-    private suspend fun resolveMarieVoiceId(): String {
-        cachedMarieVoiceId?.let { return it }
+    private suspend fun resolveVoiceId(): String {
+        cachedVoiceId?.let { return it }
         val voices = listVoices()
-        val marie = voices.firstOrNull { it.name.equals("marie - Excited", ignoreCase = true) }
-            ?: voices.firstOrNull { it.name.startsWith("marie", ignoreCase = true) }
-            ?: throw RuntimeException("Voix 'Marie' introuvable — vérifiez votre compte Mistral.")
-        cachedMarieVoiceId = marie.id
-        AppLogger.log("Voices", "Marie sélectionnée : ${marie.name} (${marie.id})")
-        return marie.id
+        val target = "${voiceConfig.name} - ${voiceConfig.emotion}"
+        val voice = voices.firstOrNull { it.name.equals(target, ignoreCase = true) }
+            ?: voices.firstOrNull { it.name.startsWith(voiceConfig.name, ignoreCase = true) }
+            ?: throw RuntimeException("Voix '${voiceConfig.name}' introuvable — vérifiez votre compte Mistral.")
+        cachedVoiceId = voice.id
+        AppLogger.log("Voices", "Voix sélectionnée : ${voice.name} (${voice.id})")
+        return voice.id
     }
 }

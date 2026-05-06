@@ -4,47 +4,48 @@
 
 App Android personnelle — Compagnie UEUEUE.
 Génère des vidéos 1080×1080 d'une marionnette Muppet-style pour Instagram.
-Tous les choix techniques ont été vérifiés et sourcés. **Ne pas les remettre en question.**
+Tous les choix techniques ont été vérifiés. **Ne pas les remettre en question.**
 
 ## Ce qui est vérifié
 
 - ✅ Three.js dans Android WebView : fonctionne avec `setJavaScriptEnabled(true)`
 - ✅ `canvas.toDataURL()` → `JavascriptInterface` → Kotlin : méthode fiable pour exporter les frames
 - ❌ `MediaRecorder` + `captureStream()` à 1080p sur Android : bug Chrome connu (bug 897727) — **NE PAS UTILISER**
-- ✅ FFmpegKit : assemble JPEG séquence + WAV + SRT → MP4 1080×1080
-- ✅ Mistral Voxtral TTS : voix Marie, émotions disponibles (Neutral/Sad/Happy/Excited/Curious/Angry)
+- ✅ FFmpegKit : assemble séquence JPEG + audio → MP4 1080×1080
+- ✅ Mistral Voxtral TTS : voix configurable via `actions-catalog.json`
 - ✅ Mistral Voxtral STT : retourne timestamps mot par mot
-- ✅ GitHub raw API : lecture des fichiers de config sans authentification
+
+## Fichiers de vérité — NE PAS DUPLIQUER AILLEURS
+
+```
+app/src/main/assets/puppet/
+├── index.html          — moteur de rendu Three.js (UN SEUL, pas de copie)
+├── puppet1.js          — géométrie 3D de la marionnette
+├── three.min.js        — librairie Three.js (CDN fallback)
+├── actions.js          — code JS de toutes les actions (applyAction)
+└── actions-catalog.json — FICHIER DE VÉRITÉ UNIQUE :
+                           voix TTS/STT, contraintes physiques,
+                           préférences de mise en scène, règles orchestrateur,
+                           catalogue des actions + recettes
+```
+
+**Règle absolue** : si une information existe dans `actions-catalog.json`, elle n'existe nulle part ailleurs.
+
+## Ajouter une nouvelle action
+
+1. Ajouter le `case` dans `actions.js`
+2. Ajouter l'entrée dans `actions-catalog.json` → section `"actions"`
+3. C'est tout — index.html charge actions.js automatiquement
 
 ## Flow complet (dans l'ordre)
 
-1. **Démarrage** : `GitHubConfig.load()` lit `puppet_constraints.md` et `director_memory.md` depuis GitHub
-2. **Rédacteur** : texte brut → `mistralClient.redact()` → script avec didascalies [éditable par l'utilisateur]
-3. **Valider** : `extractTextOnly()` retire les didascalies → `mistralClient.tts()` → audio.wav
+1. **Démarrage** : `GitHubConfig.load()` lit `actions-catalog.json` depuis GitHub (fallback assets locaux)
+2. **Rédacteur** : texte brut → `mistralClient.redact()` → script avec didascalies `[mouvement]`
+3. **Valider** : `extractTextOnly()` retire les didascalies → `mistralClient.tts()` → audio
 4. **STT** : `mistralClient.stt(audioPath)` → timestamps mot par mot
-5. **Orchestrateur** : script + timestamps + constraints + directorMemory → `mistralClient.orchestrate()` → timeline JSON
+5. **Orchestrateur** : script + timestamps + catalog → `mistralClient.orchestrate()` → timeline JSON
 6. **Rendu** : timeline injectée dans WebView → `startRenderWithTimeline()` → frames JPEG → FFmpegKit → MP4
-7. **Correction** : `mistralClient.refineOrchestration()` modifie la timeline → re-rendu (audio réutilisé, pas de nouveau TTS/STT)
-
-## Phase 1 — PRIORITÉ IMMÉDIATE
-
-Valider le pipeline vidéo de bout en bout SANS audio :
-1. WebView charge `assets/puppet/index.html`
-2. Bouton "[DEV] Test export 5s" → `startRender(150, 30)` dans le JS
-3. JS exporte 150 frames JPEG via `Android.onFrame(jpeg, index)`
-4. Kotlin écrit les fichiers JPEG dans le cache
-5. FFmpegKit assemble → MP4 dans le dossier Movies
-6. Message de confirmation avec le chemin
-
-**Critère de succès Phase 1 :** un fichier MP4 de 5 secondes avec la marionnette qui bouge la bouche, visible dans la galerie.
-
-## Fichiers de configuration (lus depuis GitHub)
-
-- `puppet_constraints.md` : contraintes physiques fixes de la marionnette
-- `director_memory.md` : préférences de mise en scène évolutives
-
-Ces fichiers sont injectés dans le prompt de l'Orchestrateur à chaque génération.
-En cas d'absence de réseau, fallback sur `assets/config/`.
+7. **Correction** : `mistralClient.refineOrchestration()` modifie la timeline → re-rendu (audio réutilisé)
 
 ## Format de script
 
@@ -52,27 +53,23 @@ En cas d'absence de réseau, fallback sur `assets/config/`.
 [Elle regarde ses papiers]
 Alors... voilà ce qu'il m'a dit.
 [Pause 1.5s]
-[Angry]
 Il ne reviendra pas.
 ```
 
 - Texte nu = parole (envoyé au TTS)
-- `[Didascalie]` = mouvement (interprété par l'Orchestrateur)
-- `[Pause Xs]` = silence
+- `[Didascalie]` = mouvement (interprété par l'Orchestrateur → actions du catalog)
+- `[Pause Xs]` = silence (`insertSilence`)
 
 ## Exigences de qualité — NON NÉGOCIABLES
 
-**Ce n'est pas un prototype ou un jouet. C'est une émission de qualité professionnelle.**
+- **Lip sync mot par mot** obligatoire — les timestamps `word` du STT sont la base du rendu
+- **Voix configurable** dans `actions-catalog.json` → section `voice`
+- **1080×1080** — pas de downgrade sans raison technique prouvée
+- Si une API ne supporte pas une fonctionnalité requise, chercher comment la débloquer
 
-- **Lip sync mot par mot** obligatoire — les timestamps `word` du STT sont la base du rendu. Ne jamais accepter un fallback segment-level comme solution finale.
-- **Voix Marie** avec l'émotion exacte — pas de substitut générique.
-- **1080×1080** — pas de downgrade de résolution sans raison technique prouvée.
-- Si une API ne supporte pas une fonctionnalité requise, chercher comment la débloquer — pas comment la contourner.
-
-## Notes
+## Notes techniques
 
 - Clé API dans `assets/config/config.json` — ne jamais committer (voir .gitignore)
-- Mettre à jour `GITHUB_USER` dans `GitHubConfig.kt`
 - Résolution : 1080×1080 — si bug Android constaté en test, fallback 720×720 + scale FFmpegKit
-- Voix : Marie / Excited par défaut
 - Temps de traitement : 2 à 4 minutes pour 1 minute de vidéo — acceptable
+- `GitHubConfig` lit `actions-catalog.json` depuis GitHub raw API, expose `constraints`, `directorMemory`, `orchestratorRules`

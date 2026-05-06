@@ -1,5 +1,14 @@
 {
-  "_doc": "Catalogue de tous les mouvements disponibles. Source de vérité pour l'orchestrateur et le développement. Toute nouvelle action doit être ajoutée ici ET dans actions.js.",
+  "_doc": "FICHIER DE VÉRITÉ UNIQUE. Modifier ici pour tout changer : voix, contraintes, régie, actions. Le code JS des actions est dans actions.js (même dossier).",
+
+  "voice": {
+    "_doc": "Config voix TTS/STT. Modifier name+emotion pour changer la voix. L'app lit ce fichier au démarrage.",
+    "name": "marie",
+    "emotion": "Excited",
+    "available_emotions": ["Neutral", "Sad", "Happy", "Excited", "Curious", "Angry"],
+    "tts_model": "voxtral-mini-tts-2603",
+    "stt_model": "voxtral-mini-latest"
+  },
 
   "actions": [
 
@@ -257,6 +266,49 @@
       {"t": 0.0, "action": "moveY",   "y": 0,              "duration": 0.5},
       {"t": 0.0, "action": "setArm",  "side": "left",  "shoulder": 0, "elbow": 0, "duration": 0.5},
       {"t": 0.0, "action": "setArm",  "side": "right", "shoulder": 0, "elbow": 0, "duration": 0.5}
+    ]
+  },
+
+  "constraints": {
+    "_doc": "Limites physiques de la marionnette. Modifier seulement si le moteur 3D change.",
+    "gaze_x":          "-0.8 à +0.8  (ne pas dépasser)",
+    "gaze_y":          "-0.7 (bas) à +0.4 (haut)",
+    "roll_rad":        "-0.35 à +0.35 rad",
+    "tilt_rad":        "-0.4 à +0.4 rad",
+    "spin_rad":        "-0.5 à +0.5 rad",
+    "move_x":          "-1.5 à +1.5 (entrée/sortie cadre : ±2.0)",
+    "move_y":          "-1.5 à +1.5",
+    "transition_min_s": 0.3,
+    "mouth":           "automatique (lip sync STT) — ne pas forcer avec setMouth",
+    "rythme_min":      "2 changements de position par 30s — pas de marionnette figée",
+    "rythme_max":      "1 changement par 0.8s — pas de mouvements frénétiques",
+    "pause_max_s":     4
+  },
+
+  "director": {
+    "_doc": "Préférences de mise en scène de Léandre. Modifier librement au fil des sessions pour affiner le comportement de l'orchestrateur.",
+    "preferences": [
+      "Privilégier les mouvements amples plutôt que timides",
+      "Le regard vers le bas fonctionne bien pour les moments mélancoliques ou intérieurs",
+      "Varier systématiquement la direction du regard — éviter de rester face caméra trop longtemps",
+      "Les entrées et sorties de cadre donnent du dynamisme aux transitions"
+    ],
+    "what_worked": [],
+    "what_didnt_work": [],
+    "notes_by_content_type": {}
+  },
+
+  "orchestration_rules": {
+    "_doc": "Règles injectées dans le prompt de l'orchestrateur IA. Modifier pour changer son comportement.",
+    "rules": [
+      "Varier le regard toutes les 2–4 secondes. Alterner setGaze (ample) et setEye (micro-pupilles).",
+      "Utiliser les bras au moins 2–3 fois par vidéo. Un bras à la fois, shoulder entre 0.3 et 0.8.",
+      "Revenir au centre après chaque geste fort (retour à 0 environ 1s après).",
+      "Le regard précède la parole de 0.2–0.3s — pas au même instant.",
+      "insertSilence : ne pas doubler les silences naturels du TTS. Calculer le gap naturel et n'insérer que ce qui manque.",
+      "Le lip sync bouche est automatique — ne jamais générer d'action pour la bouche.",
+      "Moins c'est plus : 8–12 actions pour 30 secondes. Éviter le surjeu.",
+      "Ne rien faire pendant un intervalle = puppet figé dans son dernier état — c'est valide et expressif."
     ]
   }
 }

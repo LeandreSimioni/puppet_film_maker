@@ -1,57 +1,91 @@
 package eu.ueueue.muppet
 
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
-/**
- * Lit les fichiers de configuration depuis le repo GitHub au démarrage.
- * puppet_constraints.md et director_memory.md sont injectés dans les prompts.
- *
- * URL raw GitHub : https://raw.githubusercontent.com/{user}/{repo}/main/{fichier}
- * Modifier GITHUB_USER et GITHUB_REPO selon ton compte.
- */
+// Lit actions-catalog.json depuis GitHub au démarrage, expose les sections au prompt orchestrateur.
+// Fallback automatique sur les assets locaux en cas d'absence de réseau.
+// URL GitHub : https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/app/src/main/assets/puppet/actions-catalog.json
 object GitHubConfig {
 
     private const val GITHUB_USER = "leandresimioni"
     private const val GITHUB_REPO = "puppet_film_maker"
-    private const val BRANCH = "main"
+    private const val BRANCH      = "main"
+    private const val CATALOG_PATH = "app/src/main/assets/puppet/actions-catalog.json"
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
+    private val gson = Gson()
 
-    var constraints: String = ""      // puppet_constraints.md
-    var directorMemory: String = ""   // director_memory.md
-    var orchestratorDoc: String = ""  // orchestrateur.md — actions disponibles
-    var isLoaded: Boolean = false
+    var constraints: String      = ""
+    var directorMemory: String   = ""
+    var orchestratorRules: String = ""
+    var isLoaded: Boolean        = false
 
     suspend fun load(fallbackAssets: android.content.res.AssetManager) {
         withContext(Dispatchers.IO) {
-            constraints = fetchFile("puppet_constraints.md")
-                ?: fallbackAssets.open("config/puppet_constraints.md").reader().readText()
+            val raw = fetchFile(CATALOG_PATH)
+                ?: fallbackAssets.open("puppet/actions-catalog.json").reader().readText()
 
-            directorMemory = fetchFile("director_memory.md")
-                ?: fallbackAssets.open("config/director_memory.md").reader().readText()
-
-            orchestratorDoc = fetchFile("orchestrateur.md")
-                ?: fallbackAssets.open("config/orchestrateur.md").reader().readText()
-
+            val json = gson.fromJson(raw, JsonObject::class.java)
+            constraints       = formatConstraints(json)
+            directorMemory    = formatDirector(json)
+            orchestratorRules = formatRules(json)
             isLoaded = true
         }
     }
 
-    private fun fetchFile(filename: String): String? {
+    private fun formatConstraints(json: JsonObject): String {
+        val c = json.getAsJsonObject("constraints") ?: return ""
+        return buildString {
+            appendLine("## Contraintes physiques")
+            c.entrySet().filter { it.key != "_doc" }.forEach { (k, v) ->
+                appendLine("- $k : ${v.asString}")
+            }
+        }
+    }
+
+    private fun formatDirector(json: JsonObject): String {
+        val d = json.getAsJsonObject("director") ?: return ""
+        return buildString {
+            appendLine("## Préférences de mise en scène")
+            d.getAsJsonArray("preferences")?.forEach { appendLine("- ${it.asString}") }
+            val worked = d.getAsJsonArray("what_worked")
+            if (worked != null && worked.size() > 0) {
+                appendLine("\n### Ce qui a bien fonctionné")
+                worked.forEach { appendLine("- ${it.asString}") }
+            }
+            val didnt = d.getAsJsonArray("what_didnt_work")
+            if (didnt != null && didnt.size() > 0) {
+                appendLine("\n### Ce qui n'a pas fonctionné")
+                didnt.forEach { appendLine("- ${it.asString}") }
+            }
+        }
+    }
+
+    private fun formatRules(json: JsonObject): String {
+        val r = json.getAsJsonObject("orchestration_rules") ?: return ""
+        return buildString {
+            r.getAsJsonArray("rules")?.forEachIndexed { i, rule ->
+                appendLine("${i + 1}. ${rule.asString}")
+            }
+        }
+    }
+
+    private fun fetchFile(path: String): String? {
         return try {
-            val url = "https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$BRANCH/$filename"
-            val request = Request.Builder().url(url).build()
-            val response = http.newCall(request).execute()
+            val url = "https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$BRANCH/$path"
+            val response = http.newCall(Request.Builder().url(url).build()).execute()
             if (response.isSuccessful) response.body?.string() else null
         } catch (e: Exception) {
-            null // fallback sur les assets
+            null
         }
     }
 }
