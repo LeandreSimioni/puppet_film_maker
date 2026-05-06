@@ -74,7 +74,7 @@ object UpdateChecker {
         Gson().fromJson(body, JsonObject::class.java)?.get("versionCode")?.asInt
     }
 
-    private suspend fun fetchApkUrl(): String =
+    private fun fetchApkUrl(): String =
         "https://github.com/${BuildConfig.GITHUB_REPO}/releases/latest/download/muppet-debug.apk"
 
     private suspend fun downloadAndInstall(

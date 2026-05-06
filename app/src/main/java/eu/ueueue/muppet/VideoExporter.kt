@@ -17,7 +17,7 @@ class VideoExporter(private val context: Context) {
     suspend fun assembleVideo(
         framesDir: String,
         audioPath: String?,
-        srtPath: String?,
+        @Suppress("UNUSED_PARAMETER") srtPath: String?,
         fps: Int = 30,
         outputName: String = "muppet_${System.currentTimeMillis()}.mp4",
         introCardPath: String? = null,
