@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Marionnette Export - Design Avancé</title>
+<style>
+  * { margin:0; padding:0; box-sizing: border-box; } 
+  body { background:#150800; overflow:hidden; font-family: sans-serif; }
+</style>
+</head>
+<body>
+
+<canvas id="sub" width="1080" height="1080" style="display:none"></canvas>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+const W=1080, H=1080;
+const renderer=new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x150800);
+const camera=new THREE.PerspectiveCamera(42, window.innerWidth/window.innerHeight, 0.1, 100);
+camera.position.set(0, 0.2, 6);
+camera.lookAt(0, 0.2, 0);
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+scene.add(new THREE.AmbientLight(0xffeedd, 0.4));
+const keyLight=new THREE.DirectionalLight(0xfff5e0, 1.6);
+keyLight.position.set(3, 5, 5); scene.add(keyLight);
+const fillLight=new THREE.DirectionalLight(0x99bbff, 0.35);
+fillLight.position.set(-4, 2, 3); scene.add(fillLight);
+
+const skinMat=new THREE.MeshStandardMaterial({color:0xf2c0a8,roughness:0.85});
+const shirtMat=new THREE.MeshStandardMaterial({color:0xd98b4f,roughness:0.9});
+const intMat=new THREE.MeshStandardMaterial({color:0x0a0203,roughness:1.0}); 
+
+const root=new THREE.Group(); scene.add(root);
+
+// --- CORPS ---
+const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,0.4,24), new THREE.MeshStandardMaterial({color:0xd49060,roughness:0.8}));
+neck.position.set(0,-1.18,0); root.add(neck);
+
+const torsoGroup = new THREE.Group();
+torsoGroup.position.set(0, -1.7, 0); root.add(torsoGroup);
+const body=new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.0, 32),shirtMat);
+torsoGroup.add(body);
+
+const leftSh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 24), shirtMat);
+leftSh.position.set(-0.65, 0.35, 0); torsoGroup.add(leftSh);
+const rightSh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 24), shirtMat);
+rightSh.position.set(0.65, 0.35, 0); torsoGroup.add(rightSh);
+
+// --- BRAS ---
+let leftArmGroup, rightArmGroup, leftElbowGroup, rightElbowGroup;
+function makeArm(sx){
+  const g=new THREE.Group();
+  g.position.set(sx*0.65,-1.35,0.0);
+  const sleeve=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.11,0.25,12),shirtMat);
+  sleeve.position.y=-0.125; g.add(sleeve);
+  const ua=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.55,12),skinMat);
+  ua.position.y=-0.275; g.add(ua);
+  const elbow=new THREE.Group(); elbow.position.y=-0.55; g.add(elbow);
+  const fa=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.07,0.5,12),skinMat);
+  fa.position.y=-0.25; elbow.add(fa);
+  const hand=new THREE.Mesh(new THREE.SphereGeometry(0.12,12,10),skinMat);
+  hand.position.y=-0.52; elbow.add(hand);
+  root.add(g);
+  if(sx<0) { leftArmGroup=g; leftElbowGroup=elbow; } 
+  else { rightArmGroup=g; rightElbowGroup=elbow; }
+}
+makeArm(-1); makeArm(1);
+
+// --- TÊTE ---
+const headGroup=new THREE.Group(); root.add(headGroup);
+headGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.98,32,24),intMat));
+
+// Mâchoire haute et lèvre peinte
+const uCanvas = document.createElement('canvas'); uCanvas.width = 1024; uCanvas.height = 512;
+const uCtx = uCanvas.getContext('2d'); uCtx.fillStyle = '#f2c0a8'; uCtx.fillRect(0,0,1024,512);
+uCtx.fillStyle = '#cc1111'; uCtx.beginPath(); uCtx.moveTo(512-40,512); uCtx.quadraticCurveTo(512-20,512-35,512,512-12); uCtx.quadraticCurveTo(512+20,512-35,512+40,512); uCtx.fill();
+const upperSkinMat = new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(uCanvas), color: 0xffffff, roughness: 0.85 });
+const upperJaw=new THREE.Group(); headGroup.add(upperJaw);
+upperJaw.add(new THREE.Mesh(new THREE.SphereGeometry(1,48,32,-Math.PI/2,Math.PI*2,0,Math.PI/2),upperSkinMat));
+
+// Mâchoire basse et lèvre peinte
+const lCanvas = document.createElement('canvas'); lCanvas.width = 1024; lCanvas.height = 512;
+const lCtx = lCanvas.getContext('2d'); lCtx.fillStyle = '#f2c0a8'; lCtx.fillRect(0,0,1024,512);
+lCtx.fillStyle = '#cc1111'; lCtx.beginPath(); lCtx.moveTo(512-40,0); lCtx.quadraticCurveTo(512,60,512+40,0); lCtx.fill();
+const lowerSkinMat = new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(lCanvas), color: 0xffffff, roughness: 0.85 });
+const lowerJaw=new THREE.Group(); headGroup.add(lowerJaw);
+lowerJaw.add(new THREE.Mesh(new THREE.SphereGeometry(1,48,32,-Math.PI/2,Math.PI*2,Math.PI/2,Math.PI/2),lowerSkinMat));
+
+// --- CHEVEUX ---
+const hairGroup = new THREE.Group(); upperJaw.add(hairGroup);
+const hairMat = new THREE.MeshStandardMaterial({ color: 0x261230, emissive: 0x261230, emissiveIntensity: 0.35, roughness: 0.7, side: THREE.DoubleSide });
+hairGroup.add(new THREE.Mesh(new THREE.SphereGeometry(1.06, 48, 16, 0, Math.PI * 2, 0, Math.PI * 0.15), hairMat));
+const backGeo = new THREE.SphereGeometry(1.06, 48, 32, Math.PI * 0.75, Math.PI * 1.5, Math.PI * 0.15, Math.PI * 0.65);
+const hPos = backGeo.attributes.position;
+for(let i=0; i<hPos.count; i++) {
+    let x = hPos.getX(i), y = hPos.getY(i), z = hPos.getZ(i);
+    if (y < 0.2) { 
+        let depth = 0.2 - y; let flare = Math.pow(depth, 1.5) * 0.35; 
+        let r = Math.sqrt(x*x + z*z); let scale = (r + flare) / r; 
+        hPos.setX(i, x * scale); hPos.setZ(i, z * scale); 
+    }
+}
+backGeo.computeVertexNormals(); hairGroup.add(new THREE.Mesh(backGeo, hairMat));
+hairGroup.add(new THREE.Mesh(new THREE.SphereGeometry(1.06, 24, 12, Math.PI * 0.25, Math.PI * 0.5, Math.PI * 0.15, Math.PI * 0.13), hairMat));
+
+// --- YEUX FIXÉS ET CALIBRÉS ---
+let leftEyeSocket, rightEyeSocket;
+const CALIB = { LX: -0.286, LY: -1.382, RX: 3.159, RY: 1.210 };
+
+function makeFinalEye(sx) {
+  const R = 0.85; const rx = -0.45; const ry = sx * 0.28;
+  const px = R * Math.sin(ry) * Math.cos(rx);
+  const py = R * -Math.sin(rx);
+  const pz = R * Math.cos(ry) * Math.cos(rx);
+
+  const socket = new THREE.Group(); socket.position.set(px, py, pz); upperJaw.add(socket);
+
+  const calibPivot = new THREE.Group();
+  if (sx < 0) { calibPivot.rotation.x = CALIB.LX; calibPivot.rotation.y = CALIB.LY; } 
+  else { calibPivot.rotation.x = CALIB.RX; calibPivot.rotation.y = CALIB.RY; }
+  socket.add(calibPivot);
+
+  const eyeCanvas = document.createElement('canvas'); eyeCanvas.width = 256; eyeCanvas.height = 128;
+  const eyeCtx = eyeCanvas.getContext('2d');
+  eyeCtx.fillStyle = '#f5f1e8'; eyeCtx.fillRect(0, 0, 256, 128);
+  eyeCtx.fillStyle = '#1a1410'; eyeCtx.beginPath(); eyeCtx.arc(128, 70, 14, 0, Math.PI * 2); eyeCtx.fill();
+  const eyeTex = new THREE.CanvasTexture(eyeCanvas);
+  const globe = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 24), new THREE.MeshStandardMaterial({ map: eyeTex, roughness: 0.4 }));
+  
+  globe.rotation.y = ry; globe.rotation.x = rx;
+  calibPivot.add(globe);
+
+  if (sx < 0) leftEyeSocket = socket; else rightEyeSocket = socket;
+}
+makeFinalEye(-1); makeFinalEye(1);
+
+const nose=new THREE.Mesh(new THREE.SphereGeometry(0.1,16,12),skinMat);
+nose.scale.set(1,1.1,1.2); nose.position.set(0, 0.20, 1.0); upperJaw.add(nose);
+
+
+let state={
+  mouthOpen:0, gazeX:0, gazeY:0, roll:0, posX:0, posY:0, tiltZ:0, spinY:0,
+  eyeX:0, eyeY:0,
+  leftShoulder:0, leftElbow:0, rightShoulder:0, rightElbow:0
+};
+let timeline=[]; let isExporting=false;
+
+function updatePuppet(){
+  // Corps et Position
+  root.position.x=state.posX;
+  root.position.y=state.posY;
+  root.rotation.z=state.roll;
+
+  // Tête (adapté pour les nouvelles proportions et l'inclinaison initiale)
+  headGroup.rotation.y=(state.gazeX*0.65) + state.spinY;
+  headGroup.rotation.x=-(state.gazeY - 0.75)*0.35;
+  headGroup.rotation.z=state.tiltZ;
+  
+  // Mâchoires (adapté au nouveau système de CanvasTexture)
+  lowerJaw.rotation.x=state.mouthOpen*0.65;
+  upperJaw.rotation.x=-state.mouthOpen*0.45;
+
+  // Yeux (rotation des orbites du nouveau système)
+  if(leftEyeSocket) {
+    leftEyeSocket.rotation.x = state.eyeY * 0.5;
+    leftEyeSocket.rotation.y = -state.eyeX * 0.5;
+  }
+  if(rightEyeSocket) {
+    rightEyeSocket.rotation.x = state.eyeY * 0.5;
+    rightEyeSocket.rotation.y = -state.eyeX * 0.5;
+  }
+
+  // Bras (Application aux structures du Code 1)
+  if(leftArmGroup){
+    leftArmGroup.rotation.x=-state.leftShoulder*1.1;
+    leftArmGroup.rotation.z=state.leftShoulder*0.15;
+    leftElbowGroup.rotation.x=state.leftElbow*1.0;
+  }
+  if(rightArmGroup){
+    rightArmGroup.rotation.x=-state.rightShoulder*1.1;
+    rightArmGroup.rotation.z=-state.rightShoulder*0.15;
+    rightElbowGroup.rotation.x=state.rightElbow*1.0;
+  }
+}
+
+function renderLoop(){
+    requestAnimationFrame(renderLoop);
+    if (!isExporting) {
+        updatePuppet();
+        renderer.render(scene,camera);
+    }
+}
+renderLoop();
+
+
+// --- FONCTIONS D'EXPORT ANDROID ---
+
+function startRender(totalFrames,fps){
+  if(isExporting)return;
+  isExporting=true;
+  if(typeof Android !== 'undefined') Android.onRenderStart(totalFrames);
+  let frame=0;
+  function next(){
+    if(frame>=totalFrames){
+        isExporting=false;
+        if(typeof Android !== 'undefined') Android.onRenderComplete();
+        return;
+    }
+    state.mouthOpen=0.5+0.5*Math.sin(frame*(1/fps)*Math.PI*2);
+    updatePuppet();
+    renderer.render(scene,camera);
+    if(typeof Android !== 'undefined') Android.onFrame(renderer.domElement.toDataURL('image/jpeg',0.9),frame);
+    frame++;
+    setTimeout(next,0);
+  }
+  next();
+}
+
+function computeLipSync(t,words){
+  for(const w of words){
+    if(t>=w.start&&t<=w.end){
+      const p=(t-w.start)/Math.max(w.end-w.start,0.05);
+      return 0.35+0.65*Math.sin(p*Math.PI);
+    }
+  }
+  const prev=words.filter(w=>w.end<=t).pop();
+  if(prev&&t-prev.end<0.08) return(1-(t-prev.end)/0.08)*0.25;
+  return 0;
+}
+
+const subCanvas=document.getElementById('sub');
+const subCtx=subCanvas.getContext('2d');
+
+function drawSubtitle(t,words){
+  subCtx.clearRect(0,0,W,H);
+  const w=words.find(w=>t>=w.start&&t<=w.end);
+  if(!w)return;
+  const text=w.text||w.word||'';
+  subCtx.font='bold 56px sans-serif';
+  subCtx.textAlign='center';
+  subCtx.lineWidth=6;
+  subCtx.strokeStyle='rgba(0,0,0,0.85)';
+  subCtx.strokeText(text,W/2,H-80);
+  subCtx.fillStyle='#ffffff';
+  subCtx.fillText(text,W/2,H-80);
+}
+
+function captureFrame(t,words){
+  const comp=document.createElement('canvas');
+  comp.width=W;comp.height=H;
+  const ctx=comp.getContext('2d');
+  ctx.drawImage(renderer.domElement,0,0);
+  drawSubtitle(t,words);
+  ctx.drawImage(subCanvas,0,0);
+  return comp.toDataURL('image/jpeg',0.9);
+}
+
+function startRenderWithTimeline(tl,duration,words){
+  words=words||[];
+  timeline=tl.map(e=>({...e,_done:false}));
+  const fps=30,totalFrames=Math.ceil(duration*fps);
+  if(isExporting)return;
+  isExporting=true;
+  if(typeof Android !== 'undefined') Android.onRenderStart(totalFrames);
+  let frame=0;
+  function next(){
+    if(frame>=totalFrames){
+        isExporting=false;
+        if(typeof Android !== 'undefined') Android.onRenderComplete();
+        return;
+    }
+    const t=frame/fps;
+    for(const ev of timeline){
+      if(!ev._done&&t>=ev.t){applyAction(ev);ev._done=true;}
+    }
+    state.mouthOpen=computeLipSync(t,words);
+    updatePuppet();
+    renderer.render(scene,camera);
+    if(typeof Android !== 'undefined') Android.onFrame(captureFrame(t,words),frame);
+    frame++;
+    setTimeout(next,0);
+  }
+  next();
+}
+
+function applyAction(ev){
+  if(ev.action==='setGaze'){state.gazeX=ev.gx??0;state.gazeY=ev.gy??0;}
+  else if(ev.action==='setRoll'){state.roll=ev.rad??0;}
+  else if(ev.action==='setTilt'){state.tiltZ=ev.rad??0;}
+  else if(ev.action==='setSpin'){state.spinY=ev.rad??0;}
+  else if(ev.action==='setMouth'){state.mouthOpen=ev.amount??0;}
+  else if(ev.action==='moveX'){state.posX=ev.x??0;}
+  else if(ev.action==='moveY'){state.posY=ev.y??0;}
+  else if(ev.action==='setEye'){state.eyeX=ev.ex??0;state.eyeY=ev.ey??0;}
+  else if(ev.action==='setArm'){
+    const s=ev.side;
+    if(s==='left'){
+      if(ev.shoulder!==undefined)state.leftShoulder=ev.shoulder;
+      if(ev.elbow!==undefined)state.leftElbow=ev.elbow;
+    }else{
+      if(ev.shoulder!==undefined)state.rightShoulder=ev.shoulder;
+      if(ev.elbow!==undefined)state.rightElbow=ev.elbow;
+    }
+  }
+}
+
+function setBackgroundUrl(url){
+  new THREE.TextureLoader().load(url,function(tex){
+    tex.colorSpace=THREE.SRGBColorSpace;
+    scene.background=tex;
+  });
+}
+
+window.startRender=startRender;
+window.startRenderWithTimeline=startRenderWithTimeline;
+window.setMouthOpen=(v)=>{state.mouthOpen=v;};
+window.setBackgroundUrl=setBackgroundUrl;
+</script>
+</body>
+</html>
